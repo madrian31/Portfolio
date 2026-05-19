@@ -1,7 +1,7 @@
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Keyboard,
   KeyboardEvent,
@@ -80,7 +80,7 @@ function IconArrowUp({ color = "#444" }: { color?: string }) {
   return <FontAwesome6 name="arrow-up" size={12} color={color} />;
 }
 
-// ─── Toolbar Icons (inlined) ──────────────────────────────────────────────────
+// ─── Toolbar Icons ────────────────────────────────────────────────────────────
 
 type IconName =
   | "bold"
@@ -641,7 +641,7 @@ const ACTIVITIES = [
   { id: "none", label: "None", icon: "none" },
 ];
 
-// ─── Devotion Card Themes ─────────────────────────────────────────────────────
+// ─── Card Themes (unchanged) ──────────────────────────────────────────────────
 
 const CARD_THEMES = [
   {
@@ -697,8 +697,6 @@ const CARD_THEMES = [
     decorColor: "#08162e",
   },
 ];
-
-// ─── General Note Card Themes ─────────────────────────────────────────────────
 
 const NOTE_THEMES = [
   {
@@ -764,6 +762,10 @@ function defaultSegment(overrides?: Partial<Segment>): Segment {
     fontSize: 16,
     color: "#f0f0f0",
     align: "left",
+    bold: false,
+    italic: false,
+    underline: false,
+    strikethrough: false,
     ...overrides,
   };
 }
@@ -777,7 +779,37 @@ function asString(val: string | string[] | undefined, fallback = ""): string {
   return Array.isArray(val) ? val[0] : val;
 }
 
-// ─── Canvas helpers ───────────────────────────────────────────────────────────
+// ─── Segment style helper ─────────────────────────────────────────────────────
+
+function getSegmentTextStyle(seg: Segment): object {
+  const baseSize = seg.heading
+    ? HEADING_SIZE[seg.heading]
+    : (seg.fontSize ?? 16);
+  const baseWeight = seg.heading
+    ? HEADING_WEIGHT[seg.heading]
+    : seg.bold
+      ? "700"
+      : "400";
+  return {
+    fontSize: baseSize,
+    fontWeight: baseWeight,
+    fontStyle: seg.italic ? "italic" : "normal",
+    textDecorationLine:
+      seg.underline && seg.strikethrough
+        ? "underline line-through"
+        : seg.underline
+          ? "underline"
+          : seg.strikethrough
+            ? "line-through"
+            : "none",
+    color: seg.color ?? "#f0f0f0",
+    backgroundColor: seg.highlight ?? "transparent",
+    textAlign: seg.align ?? "left",
+    lineHeight: baseSize * 1.6,
+  };
+}
+
+// ─── Canvas helpers (unchanged) ───────────────────────────────────────────────
 
 function canvasWrapText(
   ctx: CanvasRenderingContext2D,
@@ -839,7 +871,7 @@ function roundRect(
   ctx.closePath();
 }
 
-// ─── Draw Devotion Card ───────────────────────────────────────────────────────
+// ─── Draw Devotion Card (unchanged) ──────────────────────────────────────────
 
 type DevotionCardData = {
   title: string;
@@ -853,8 +885,8 @@ async function drawDevotionCard(
   theme: (typeof CARD_THEMES)[0],
   data: DevotionCardData,
 ): Promise<string> {
-  const W = 720;
-  const PAD = 56;
+  const W = 720,
+    PAD = 56;
   const mc = document.createElement("canvas");
   mc.width = W;
   mc.height = 100;
@@ -908,10 +940,9 @@ async function drawDevotionCard(
   let BODY_H = 0;
   if (data.plainText) {
     const paragraphs = data.plainText.split("\n").filter((p) => p.trim());
-    for (const para of paragraphs) {
+    for (const para of paragraphs)
       BODY_H +=
         measureLines(mctx, para, "22px Georgia, serif", W - PAD * 2, 34) + 10;
-    }
     BODY_H += 8;
   }
 
@@ -949,9 +980,9 @@ async function drawDevotionCard(
 
   if (data.verseText) {
     const verseClean = data.verseText.replace(/^"|"$/g, "").trim();
-    const VPAD = 28;
-    const verseX = PAD + VPAD;
-    const verseMaxW = W - PAD * 2 - VPAD * 2;
+    const VPAD = 28,
+      verseX = PAD + VPAD,
+      verseMaxW = W - PAD * 2 - VPAD * 2;
     const vTextH = measureLines(
       mctx,
       `"${verseClean}"`,
@@ -1015,7 +1046,7 @@ async function drawDevotionCard(
   return canvas.toDataURL("image/jpeg", 0.96);
 }
 
-// ─── Draw General Note Card ───────────────────────────────────────────────────
+// ─── Draw General Note Card (unchanged) ──────────────────────────────────────
 
 type NoteCardData = {
   title: string;
@@ -1031,8 +1062,8 @@ async function drawGeneralNoteCard(
   theme: (typeof NOTE_THEMES)[0],
   data: NoteCardData,
 ): Promise<string> {
-  const W = 720;
-  const PAD = 52;
+  const W = 720,
+    PAD = 52;
   const accent = data.accentColor;
   const measureCanvas = document.createElement("canvas");
   measureCanvas.width = W;
@@ -1041,8 +1072,8 @@ async function drawGeneralNoteCard(
 
   mctx.font = "bold 40px Georgia, serif";
   const titleWords = (data.title || "Untitled").split(" ");
-  let tLine = "";
-  let titleLines = 0;
+  let tLine = "",
+    titleLines = 0;
   for (const w of titleWords) {
     const t = tLine + w + " ";
     if (mctx.measureText(t).width > W - PAD * 2 && tLine !== "") {
@@ -1056,8 +1087,8 @@ async function drawGeneralNoteCard(
 
   mctx.font = "22px Georgia, serif";
   const bodyWords = (data.plainText || "").split(" ").filter(Boolean);
-  let bLine = "";
-  let bodyLines = 0;
+  let bLine = "",
+    bodyLines = 0;
   for (const w of bodyWords) {
     const t = bLine + w + " ";
     if (mctx.measureText(t).width > W - PAD * 2 && bLine !== "") {
@@ -1080,7 +1111,6 @@ async function drawGeneralNoteCard(
     (data.emotion ? 44 : 0) +
     64 +
     32;
-
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
@@ -1134,8 +1164,8 @@ async function drawGeneralNoteCard(
     ctx.font = "bold 18px system-ui, sans-serif";
     let tagX = PAD;
     for (const tag of data.tags) {
-      const label = `#${tag}`;
-      const tw = ctx.measureText(label).width + 28;
+      const label = `#${tag}`,
+        tw = ctx.measureText(label).width + 28;
       roundRect(ctx, tagX, curY, tw, 30, 15);
       ctx.fillStyle = accent + "22";
       ctx.fill();
@@ -1184,7 +1214,7 @@ async function drawGeneralNoteCard(
   return canvas.toDataURL("image/jpeg", 0.96);
 }
 
-// ─── Share helper ─────────────────────────────────────────────────────────────
+// ─── Share helper (unchanged) ─────────────────────────────────────────────────
 
 async function shareOrDownloadDataUrl(dataUrl: string, filename: string) {
   if (Platform.OS === "web") {
@@ -1214,7 +1244,7 @@ async function shareOrDownloadDataUrl(dataUrl: string, filename: string) {
   }
 }
 
-// ─── Devotion Card Preview ────────────────────────────────────────────────────
+// ─── Card Previews (unchanged) ────────────────────────────────────────────────
 
 function DevotionCardPreview({
   title,
@@ -1304,8 +1334,6 @@ function DevotionCardPreview({
     </View>
   );
 }
-
-// ─── General Note Card Preview ────────────────────────────────────────────────
 
 function NoteCardPreview({
   title,
@@ -1504,7 +1532,7 @@ const nc = StyleSheet.create({
   footerSub: { fontSize: 10, letterSpacing: 0.2 },
 });
 
-// ─── Share Modal — Devotion ───────────────────────────────────────────────────
+// ─── Share Modals (unchanged) ─────────────────────────────────────────────────
 
 function ShareDevotionModal({
   visible,
@@ -1690,8 +1718,6 @@ function ShareDevotionModal({
     </Modal>
   );
 }
-
-// ─── Share Modal — General Note ───────────────────────────────────────────────
 
 function ShareNoteModal({
   visible,
@@ -1918,7 +1944,6 @@ const sm = StyleSheet.create({
   headerTitle: { color: "#f0f0f0", fontSize: 16, fontWeight: "700" },
   headerSub: { color: "#555", fontSize: 12, marginTop: 2 },
   closeBtn: { padding: 4 },
-  closeText: { color: "#555", fontSize: 18 },
   cardPreviewWrap: {
     alignItems: "center",
     paddingVertical: 20,
@@ -1952,14 +1977,6 @@ const sm = StyleSheet.create({
     paddingHorizontal: 4,
     gap: 5,
     position: "relative",
-  },
-  themeColorDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
   },
   themeLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 0.3 },
   themeCheck: {
@@ -2008,6 +2025,70 @@ const sm = StyleSheet.create({
   },
 });
 
+// ─── Segment Row ──────────────────────────────────────────────────────────────
+// Each segment is its own TextInput with its own formatting styles applied.
+
+function SegmentRow({
+  seg,
+  isActive,
+  journalColor,
+  onFocus,
+  onChange,
+  onKeyPress,
+  onSubmitEditing,
+  inputRef,
+}: {
+  seg: Segment;
+  isActive: boolean;
+  journalColor: string;
+  onFocus: () => void;
+  onChange: (text: string) => void;
+  onKeyPress: (e: any) => void;
+  onSubmitEditing: () => void;
+  inputRef: (ref: TextInput | null) => void;
+}) {
+  const textStyle = getSegmentTextStyle(seg);
+
+  return (
+    <View
+      style={
+        seg.highlight
+          ? [sr.highlightWrap, { backgroundColor: seg.highlight }]
+          : null
+      }
+    >
+      <TextInput
+        ref={inputRef}
+        style={[sr.input, textStyle, { textAlign: seg.align ?? "left" }]}
+        value={seg.text}
+        onChangeText={onChange}
+        onFocus={onFocus}
+        onKeyPress={onKeyPress}
+        onSubmitEditing={onSubmitEditing}
+        multiline={false}
+        blurOnSubmit={false}
+        selectionColor={journalColor}
+        placeholder={isActive && seg.text === "" ? "Write here..." : ""}
+        placeholderTextColor={journalColor + "30"}
+        autoCorrect
+        autoCapitalize="sentences"
+        returnKeyType="next"
+      />
+    </View>
+  );
+}
+
+const sr = StyleSheet.create({
+  highlightWrap: { borderRadius: 4, marginHorizontal: 18, marginVertical: 1 },
+  input: {
+    paddingHorizontal: 18,
+    paddingVertical: 3,
+    color: "#f0f0f0",
+    backgroundColor: "transparent",
+    minHeight: 32,
+  } as any,
+});
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function NoteForm() {
@@ -2022,16 +2103,26 @@ export default function NoteForm() {
   const initialTitle = asString(params.initialTitle, "");
   const paramVerseRef = asString(params.verseRef, "");
   const paramVerseText = asString(params.verseText, "");
+  // newKey is passed by NoteList for new notes — unique per session, forces fresh state
+  const newKey = asString(params.newKey, "");
 
   const storageKey = STORAGE_KEYS.notes(journalId);
 
-  const [title, setTitle] = useState(initialTitle);
-  const [verseRef, setVerseRef] = useState(paramVerseRef);
-  const [verseText, setVerseText] = useState(paramVerseText);
-  const verseRefRef = useRef(paramVerseRef);
-  const verseTextRef = useRef(paramVerseText);
+  // ── Detect new note vs edit ─────────────────────────────────────────────────
+  // If no noteId param, this is always a fresh new note — ignore any stale params
+  // isNewNote: true when newKey param present (new note from NoteList) OR no id at all
+  const isNewNote = !!newKey || !noteId;
+
+  const [title, setTitle] = useState(isNewNote ? "" : initialTitle);
+  const [verseRef, setVerseRef] = useState(isNewNote ? "" : paramVerseRef);
+  const [verseText, setVerseText] = useState(isNewNote ? "" : paramVerseText);
+  const verseRefRef = useRef(isNewNote ? "" : paramVerseRef);
+  const verseTextRef = useRef(isNewNote ? "" : paramVerseText);
+
+  // ── Segments state ──────────────────────────────────────────────────────────
   const [segments, setSegments] = useState<Segment[]>([defaultSegment()]);
-  const [bodyText, setBodyText] = useState("");
+  const segsRef = useRef<Segment[]>([defaultSegment()]);
+
   const [activeIdx, setActiveIdx] = useState(0);
   const [fmt, setFmt] = useState<Partial<Segment>>({
     bold: false,
@@ -2044,9 +2135,10 @@ export default function NoteForm() {
     heading: undefined,
     align: "left",
   });
+
   const [picker, setPicker] = useState<
     "fontSize" | "color" | "highlight" | "heading" | "mood" | null
-  >(null); // "align" removed — now 3 separate toolbar buttons
+  >(null);
   const [kbHeight, setKbHeight] = useState(0);
   const [isSavingUI, setIsSavingUI] = useState(false);
   const [emotion, setEmotion] = useState<EmotionEntry | undefined>(undefined);
@@ -2055,29 +2147,28 @@ export default function NoteForm() {
   const [tagInput, setTagInput] = useState("");
   const [selectedValence, setSelectedValence] = useState<number | null>(null);
 
-  // segHeights fully removed — no state/ref needed, TextInput auto-grows via style
-
   const [showDevotionShareModal, setShowDevotionShareModal] = useState(false);
   const [showNoteShareModal, setShowNoteShareModal] = useState(false);
   const [noteDate, setNoteDate] = useState(new Date().toISOString());
-  const [editorFocused, setEditorFocused] = useState(false);
-  const hasContent = bodyText.trim().length > 0;
-  const isDevotionNote = !!(verseRef || verseText);
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const noteIdRef = useRef<string | null>(noteId || null);
+  // For new notes, noteIdRef must start as null so saveNow creates a new record
+  const noteIdRef = useRef<string | null>(isNewNote ? null : noteId || null);
   const hasChanges = useRef(false);
   const isSaving = useRef(false);
   const latestRef = useRef({
-    title: initialTitle,
+    title: isNewNote ? "" : initialTitle,
     segments: [defaultSegment()],
   });
   const emotionRef = useRef<EmotionEntry | undefined>(undefined);
   const activitiesRef = useRef<string[]>([]);
   const tagsRef = useRef<string[]>([]);
-  const segsRef = useRef<Segment[]>([defaultSegment()]);
   const inputRefs = useRef<Record<string, TextInput | null>>({});
 
+  const hasContent = segsRef.current.some((s) => s.text.trim().length > 0);
+  const isDevotionNote = !!(verseRef || verseText);
+
+  // ── Keyboard listeners ──────────────────────────────────────────────────────
   useEffect(() => {
     const showEvt =
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -2093,15 +2184,68 @@ export default function NoteForm() {
     };
   }, []);
 
-  useEffect(() => {
-    if (noteId) loadNote();
-    return () => {
+  // ── Focus effect: reset state every time screen is focused ────────────────
+  // Expo Router reuses screen instances, so useState initial values only run once.
+  // useFocusEffect runs on every navigation to this screen — guarantees fresh state.
+  useFocusEffect(
+    useCallback(() => {
+      // Cancel any pending autosave from previous session
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
 
+      // Get fresh params each focus
+      const currentNoteId = asString(params.id as any);
+      const currentNewKey = asString(params.newKey as any);
+      const freshIsNew = !!currentNewKey || !currentNoteId;
+
+      if (freshIsNew) {
+        // Reset everything to blank
+        const blankSeg = defaultSegment();
+        segsRef.current = [blankSeg];
+        latestRef.current = { title: "", segments: [blankSeg] };
+        noteIdRef.current = null;
+        emotionRef.current = undefined;
+        activitiesRef.current = [];
+        tagsRef.current = [];
+        hasChanges.current = false;
+        isSaving.current = false;
+
+        setTitle("");
+        setVerseRef(asString(params.verseRef as any, ""));
+        setVerseText(asString(params.verseText as any, ""));
+        setSegments([blankSeg]);
+        setActiveIdx(0);
+        setEmotion(undefined);
+        setActivities([]);
+        setTags([]);
+        setTagInput("");
+        setSelectedValence(null);
+        setNoteDate(new Date().toISOString());
+        setFmt({
+          bold: false,
+          italic: false,
+          underline: false,
+          strikethrough: false,
+          fontSize: 16,
+          color: "#f0f0f0",
+          highlight: "",
+          heading: undefined,
+          align: "left",
+        });
+      } else if (currentNoteId) {
+        // Editing existing note — load it fresh
+        noteIdRef.current = currentNoteId;
+        loadNote(currentNoteId);
+      }
+
+      return () => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      };
+    }, [params.id, params.newKey]),
+  );
+
+  // ── Sync fmt when active segment changes ────────────────────────────────────
   useEffect(() => {
-    const seg = segments[activeIdx];
+    const seg = segsRef.current[activeIdx];
     if (!seg) return;
     setFmt({
       bold: seg.bold ?? false,
@@ -2116,22 +2260,21 @@ export default function NoteForm() {
     });
   }, [activeIdx, segments]);
 
-  const loadNote = async () => {
+  // ── Load note ───────────────────────────────────────────────────────────────
+  const loadNote = async (idToLoad: string) => {
     try {
       const stored = await Storage.getItem(storageKey);
       const parsed: Note[] = stored ? JSON.parse(stored) : [];
-      const existing = parsed.find((n) => n.id === noteId);
+      const existing = parsed.find((n) => n.id === idToLoad);
       if (!existing) return;
       setTitle(existing.title);
       if (existing.date) setNoteDate(existing.date);
       const segs = existing.segments?.length
         ? existing.segments
         : [defaultSegment({ text: existing.text })];
-      setSegments(segs);
       segsRef.current = segs;
+      setSegments([...segs]);
       latestRef.current = { title: existing.title, segments: segs };
-      const loadedText = segs.map((s) => s.text).join("\n");
-      setBodyText(loadedText);
       if (existing.emotion) {
         setEmotion(existing.emotion);
         emotionRef.current = existing.emotion;
@@ -2158,19 +2301,7 @@ export default function NoteForm() {
     }
   };
 
-  const syncSegmentsFromBody = (text: string) => {
-    const lines = text.split("\n");
-    const current = segsRef.current;
-    const synced = lines.map((line, i) => {
-      const existing = current[i];
-      return existing
-        ? { ...existing, text: line }
-        : defaultSegment({ text: line });
-    });
-    segsRef.current = synced;
-    latestRef.current.segments = synced;
-  };
-
+  // ── Save ────────────────────────────────────────────────────────────────────
   const saveNow = async () => {
     if (isSaving.current) {
       await new Promise<void>((resolve) => {
@@ -2239,12 +2370,18 @@ export default function NoteForm() {
     isSaving.current = false;
   };
 
+  const triggerSave = () => {
+    hasChanges.current = true;
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(saveNow, 1000);
+  };
+
   const handleBack = async () => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    const hasContent =
+    const hasAny =
       latestRef.current.title.trim() ||
       segmentsToPlain(latestRef.current.segments).trim();
-    if (hasChanges.current || hasContent) {
+    if (hasChanges.current || hasAny) {
       setIsSavingUI(true);
       isSaving.current = false;
       await saveNow();
@@ -2253,17 +2390,11 @@ export default function NoteForm() {
     router.back();
   };
 
-  const triggerSave = (currentBodyText?: string) => {
-    hasChanges.current = true;
-    if (currentBodyText !== undefined) syncSegmentsFromBody(currentBodyText);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(saveNow, 1000);
-  };
-
+  // ── Segment operations ──────────────────────────────────────────────────────
   const pushSegments = (next: Segment[]) => {
     segsRef.current = next;
     latestRef.current.segments = next;
-    setSegments(next);
+    setSegments([...next]);
     triggerSave();
   };
 
@@ -2274,7 +2405,10 @@ export default function NoteForm() {
     pushSegments(next);
   };
 
-  const handleChange = (idx: number, newText: string) => {
+  // When user types in a segment row
+  const handleSegChange = (idx: number, newText: string) => {
+    // No newlines possible in single-line TextInput with returnKeyType="next"
+    // But handle paste that might include newlines
     if (!newText.includes("\n")) {
       patchSeg(idx, { text: newText });
       return;
@@ -2286,14 +2420,16 @@ export default function NoteForm() {
     const newSegs: Segment[] = [
       ...before,
       { ...cur, text: parts[0] },
-      ...parts.slice(1).map((p) =>
-        defaultSegment({
-          text: p,
-          fontSize: cur.fontSize,
-          color: cur.color,
-          align: cur.align,
-        }),
-      ),
+      ...parts
+        .slice(1)
+        .map((p) =>
+          defaultSegment({
+            text: p,
+            fontSize: cur.fontSize,
+            color: cur.color,
+            align: cur.align,
+          }),
+        ),
       ...after,
     ];
     pushSegments(newSegs);
@@ -2305,7 +2441,8 @@ export default function NoteForm() {
     }, 30);
   };
 
-  const handleEnter = (idx: number) => {
+  // Enter key → new segment
+  const handleSegSubmit = (idx: number) => {
     const cur = segsRef.current[idx];
     const before = segsRef.current.slice(0, idx + 1);
     const after = segsRef.current.slice(idx + 1);
@@ -2322,7 +2459,8 @@ export default function NoteForm() {
     }, 30);
   };
 
-  const handleKeyPress = (idx: number, e: any) => {
+  // Backspace on empty segment → merge with previous
+  const handleSegKeyPress = (idx: number, e: any) => {
     if (e.nativeEvent.key !== "Backspace") return;
     const cur = segsRef.current[idx];
     if (cur.text.length > 0 || idx === 0) return;
@@ -2335,6 +2473,7 @@ export default function NoteForm() {
     }, 30);
   };
 
+  // ── Formatting ──────────────────────────────────────────────────────────────
   const applyFmt = (patch: Partial<Segment>) => {
     patchSeg(activeIdx, patch);
     setFmt((prev) => ({ ...prev, ...patch }));
@@ -2344,8 +2483,14 @@ export default function NoteForm() {
     key: "bold" | "italic" | "underline" | "strikethrough",
   ) => {
     applyFmt({ [key]: !fmt[key] });
+    // Re-focus the active input after toggling
+    setTimeout(() => {
+      const seg = segsRef.current[activeIdx];
+      if (seg) inputRefs.current[seg.id]?.focus();
+    }, 50);
   };
 
+  // ── Emotion / Activities / Tags ─────────────────────────────────────────────
   const setEmotionEntry = (entry: EmotionEntry | undefined) => {
     emotionRef.current = entry;
     setEmotion(entry);
@@ -2389,13 +2534,18 @@ export default function NoteForm() {
     triggerSave();
   };
 
-  const handleShare = () => {
+  const handleShare = () =>
     isDevotionNote
       ? setShowDevotionShareModal(true)
       : setShowNoteShareModal(true);
-  };
 
   const toolbarBottom = kbHeight > 0 ? kbHeight : insets.bottom;
+  const wordCount = segments
+    .map((s) => s.text)
+    .join(" ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#161616" }}>
@@ -2438,6 +2588,13 @@ export default function NoteForm() {
           triggerSave();
         }}
         selectionColor={journalColor}
+        returnKeyType="next"
+        onSubmitEditing={() => {
+          setTimeout(() => {
+            const seg = segsRef.current[0];
+            if (seg) inputRefs.current[seg.id]?.focus();
+          }, 50);
+        }}
       />
 
       {/* Bible Verse Card */}
@@ -2453,33 +2610,56 @@ export default function NoteForm() {
         </View>
       ) : null}
 
-      {/* Editor */}
-      <TextInput
-        style={[s.bodyInput, { paddingBottom: kbHeight + 80 } as any]}
-        placeholder="Start writing..."
-        placeholderTextColor={journalColor + "40"}
-        value={bodyText}
-        onChangeText={(t) => {
-          setBodyText(t);
-          latestRef.current.title = title;
-          triggerSave(t);
-        }}
-        onFocus={() => setEditorFocused(true)}
-        onBlur={() => setEditorFocused(false)}
-        multiline
-        scrollEnabled
-        selectionColor={journalColor}
-        autoCorrect
-        textAlignVertical="top"
-      />
-      {bodyText.trim().length > 0 && (
-        <Text
-          style={[
-            s.wordCount,
-            { position: "absolute", bottom: kbHeight + 60, right: 18 },
-          ]}
-        >
-          {bodyText.trim().split(/\s+/).filter(Boolean).length} words
+      {/* ── Rich Text Editor (multi-segment) ── */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[
+          s.editorContent,
+          { paddingBottom: toolbarBottom + 60 },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        {segments.map((seg, idx) => (
+          <SegmentRow
+            key={seg.id}
+            seg={seg}
+            isActive={activeIdx === idx}
+            journalColor={journalColor}
+            onFocus={() => setActiveIdx(idx)}
+            onChange={(text) => handleSegChange(idx, text)}
+            onKeyPress={(e) => handleSegKeyPress(idx, e)}
+            onSubmitEditing={() => handleSegSubmit(idx)}
+            inputRef={(ref) => {
+              inputRefs.current[seg.id] = ref;
+            }}
+          />
+        ))}
+        {/* Tap-to-add area below last segment */}
+        <TouchableOpacity
+          style={s.editorTapArea}
+          activeOpacity={1}
+          onPress={() => {
+            const last = segsRef.current[segsRef.current.length - 1];
+            if (last && last.text.trim() === "") {
+              setActiveIdx(segsRef.current.length - 1);
+              inputRefs.current[last.id]?.focus();
+            } else {
+              const newSeg = defaultSegment();
+              const newSegs = [...segsRef.current, newSeg];
+              pushSegments(newSegs);
+              setTimeout(() => {
+                setActiveIdx(newSegs.length - 1);
+                inputRefs.current[newSeg.id]?.focus();
+              }, 30);
+            }
+          }}
+        />
+      </ScrollView>
+
+      {/* Word count */}
+      {wordCount > 0 && (
+        <Text style={[s.wordCount, { bottom: toolbarBottom + 52 }]}>
+          {wordCount} words
         </Text>
       )}
 
@@ -2675,7 +2855,8 @@ export default function NoteForm() {
         ))}
       </BottomSheet>
 
-      {(tags.length > 0 || tagInput.length > 0) && (
+      {/* Tags row */}
+      {tags.length > 0 && (
         <View style={[s.tagsRow, { bottom: toolbarBottom + 50 }]}>
           <ScrollView
             horizontal
@@ -3040,41 +3221,14 @@ const s = StyleSheet.create({
     fontStyle: "italic",
     lineHeight: 22,
   },
-  editorContent: { paddingHorizontal: 18, paddingTop: 14 },
-  emptyEditorHint: { alignItems: "center", paddingVertical: 32, gap: 10 },
-  emptyEditorIcon: { fontSize: 32 },
-  emptyEditorText: {
-    fontSize: 14,
-    textAlign: "center",
-    fontStyle: "italic",
-    lineHeight: 22,
-    paddingHorizontal: 24,
-  },
-  segWrapper: { paddingLeft: 0, marginLeft: 0, marginBottom: 0 },
-  segInput: {
-    width: "100%",
-    color: "#f0f0f0",
-    paddingVertical: 2,
-    paddingHorizontal: 0,
-    backgroundColor: "transparent",
-    marginVertical: 1,
-    minHeight: 32,
-  } as any,
-  bodyInput: {
-    flex: 1,
-    color: "#f0f0f0",
-    fontSize: 16,
-    lineHeight: 26,
-    paddingHorizontal: 18,
-    paddingTop: 14,
-    textAlignVertical: "top",
-  },
+  editorContent: { paddingTop: 10, paddingBottom: 20 },
+  editorTapArea: { minHeight: 120 },
   wordCount: {
     color: "#2e2e2e",
     fontSize: 11,
     textAlign: "right",
-    marginTop: 12,
-    marginRight: 2,
+    position: "absolute",
+    right: 18,
   },
   toolbarWrap: {
     position: "absolute",
@@ -3142,7 +3296,6 @@ const s = StyleSheet.create({
     borderBottomColor: "#1f1f1f",
   },
   sheetTitle: { color: "#e0e0e0", fontSize: 15, fontWeight: "600" },
-  sheetClose: { color: "#555", fontSize: 18, paddingHorizontal: 4 },
   sheetRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -3211,7 +3364,6 @@ const s = StyleSheet.create({
     paddingVertical: 10,
     gap: 4,
   },
-  activityEmojiUnused: { fontSize: 22 },
   activityLabel: { fontSize: 10, color: "#555", fontWeight: "600" },
   tagInputRow: {
     flexDirection: "row",
@@ -3241,6 +3393,8 @@ const s = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 5,
+    flexDirection: "row",
+    alignItems: "center",
   },
   tagPillText: { color: "#888", fontSize: 12 },
   tagsRow: {

@@ -63,7 +63,10 @@ export default function NoteList() {
     await Storage.setItem(storageKey, JSON.stringify(updated));
   };
 
-  // ✅ Object-style push — no manual URL string encoding
+  // ─── Navigate to NoteForm ─────────────────────────────────────────────────
+  // For NEW notes: pass a unique `newKey` param so NoteForm always
+  // starts completely blank — Expo Router reuses screen instances, so
+  // without this key the old note's state can bleed into the new screen.
   const goToNoteForm = (noteId?: string) => {
     router.push({
       pathname: "/note-form",
@@ -71,7 +74,7 @@ export default function NoteList() {
         journalId,
         journalColor,
         journalName,
-        ...(noteId ? { id: noteId } : {}),
+        ...(noteId ? { id: noteId } : { newKey: Date.now().toString() }),
       },
     } as any);
   };
