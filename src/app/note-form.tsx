@@ -2286,16 +2286,14 @@ export default function NoteForm() {
     const newSegs: Segment[] = [
       ...before,
       { ...cur, text: parts[0] },
-      ...parts
-        .slice(1)
-        .map((p) =>
-          defaultSegment({
-            text: p,
-            fontSize: cur.fontSize,
-            color: cur.color,
-            align: cur.align,
-          }),
-        ),
+      ...parts.slice(1).map((p) =>
+        defaultSegment({
+          text: p,
+          fontSize: cur.fontSize,
+          color: cur.color,
+          align: cur.align,
+        }),
+      ),
       ...after,
     ];
     pushSegments(newSegs);
