@@ -495,7 +495,6 @@ function ToolBtn({
       onStartShouldSetResponder={() => true}
       onTouchStart={(e) => {
         e.stopPropagation();
-        // Prevent keyboard dismiss on Android
         if (Platform.OS === "android") e.preventDefault?.();
       }}
       style={({ pressed }) => [
@@ -656,6 +655,8 @@ const EMOTIONS: EmotionDef[] = [
 
 const INTENSITY_LABELS = ["Slightly", "Moderately", "Strongly"] as const;
 
+const MAX_TAGS = 3;
+
 const ACTIVITIES = [
   { id: "stationary", label: "Stationary", icon: "stationary" },
   { id: "eating", label: "Eating", icon: "eating" },
@@ -729,49 +730,57 @@ const NOTE_THEMES = [
     id: "dark",
     label: "Dark",
     emoji: "circle-half-stroke",
-    bg: "#0d0d0d",
+    // Pure black — classic dark journal
+    bg: "#0a0a0a",
     accent: "",
     titleColor: "#f0f0f0",
-    textColor: "#999",
-    borderColor: "#1e1e1e",
+    textColor: "#888",
+    borderColor: "#2a2a2a",
     tagBg: "#1a1a1a",
     footerColor: "#333",
+    previewAccent: "#c084fc",
   },
   {
     id: "slate",
     label: "Slate",
     emoji: "cloud",
-    bg: "#0f1117",
+    // Deep navy/slate — cool blue-grey tone
+    bg: "#0c0f1a",
     accent: "",
-    titleColor: "#e8eaf0",
-    textColor: "#8a8fa8",
-    borderColor: "#1c1f2e",
-    tagBg: "#171a26",
-    footerColor: "#2a2d3a",
+    titleColor: "#dde3f5",
+    textColor: "#7a85a8",
+    borderColor: "#1e2440",
+    tagBg: "#131828",
+    footerColor: "#1e2440",
+    previewAccent: "#7b9cdd",
   },
   {
     id: "warm",
     label: "Warm",
     emoji: "fire-flame-curved",
-    bg: "#110e09",
+    // Deep warm brown — amber/orange tone
+    bg: "#130d06",
     accent: "",
-    titleColor: "#f5ede0",
-    textColor: "#9a8870",
-    borderColor: "#2a2010",
-    tagBg: "#1a1508",
-    footerColor: "#2a1f0f",
+    titleColor: "#f7e8cc",
+    textColor: "#c49a60",
+    borderColor: "#3a2208",
+    tagBg: "#1f1208",
+    footerColor: "#3a2208",
+    previewAccent: "#e8833a",
   },
   {
     id: "cool",
     label: "Cool",
     emoji: "snowflake",
-    bg: "#08101a",
+    // Deep midnight blue — icy tone
+    bg: "#060d18",
     accent: "",
-    titleColor: "#e0eeff",
-    textColor: "#6a8aaa",
-    borderColor: "#0f1e30",
-    tagBg: "#0a1520",
-    footerColor: "#0f1e30",
+    titleColor: "#d8eeff",
+    textColor: "#5a8aaa",
+    borderColor: "#0d2035",
+    tagBg: "#081525",
+    footerColor: "#0d2035",
+    previewAccent: "#60b4f8",
   },
 ];
 
@@ -951,6 +960,8 @@ function NoteCardPreview({
     month: "long",
     day: "numeric",
   });
+  // Use the theme's own previewAccent for tinted elements inside the card
+  const themeAccent = (theme as any).previewAccent ?? accentColor;
   return (
     <View
       style={[
@@ -958,9 +969,10 @@ function NoteCardPreview({
         { backgroundColor: theme.bg, borderColor: theme.borderColor },
       ]}
     >
-      <View style={[nc.topBar, { backgroundColor: accentColor }]} />
+      {/* Top bar uses theme's own accent so each card looks different */}
+      <View style={[nc.topBar, { backgroundColor: themeAccent }]} />
       <View style={nc.header}>
-        <Text style={[nc.dateText, { color: accentColor }]}>
+        <Text style={[nc.dateText, { color: themeAccent }]}>
           {dateStr.toUpperCase()}
         </Text>
         {title ? (
@@ -986,9 +998,9 @@ function NoteCardPreview({
           {tags.slice(0, 3).map((tag) => (
             <View
               key={tag}
-              style={[nc.tagPill, { backgroundColor: accentColor + "22" }]}
+              style={[nc.tagPill, { backgroundColor: themeAccent + "22" }]}
             >
-              <Text style={[nc.tagText, { color: accentColor }]}>#{tag}</Text>
+              <Text style={[nc.tagText, { color: themeAccent }]}>#{tag}</Text>
             </View>
           ))}
         </View>
@@ -1005,8 +1017,8 @@ function NoteCardPreview({
         style={[nc.footerDivider, { backgroundColor: theme.borderColor }]}
       />
       <View style={nc.footer}>
-        <Text style={[nc.footerBrand, { color: accentColor }]}>✦ Notely</Text>
-        <Text style={[nc.footerSub, { color: accentColor + "88" }]}>
+        <Text style={[nc.footerBrand, { color: themeAccent }]}>✦ Notely</Text>
+        <Text style={[nc.footerSub, { color: themeAccent + "88" }]}>
           {journalName || "My Journal"}
         </Text>
       </View>
@@ -1122,7 +1134,7 @@ const nc = StyleSheet.create({
   footerSub: { fontSize: 10, letterSpacing: 0.2 },
 });
 
-// ─── Share Modals (updated to use react-native-view-shot) ────────────────────
+// ─── Share Modals ─────────────────────────────────────────────────────────────
 
 function ShareDevotionModal({
   visible,
@@ -1147,23 +1159,15 @@ function ShareDevotionModal({
   const [isCapturing, setIsCapturing] = useState(false);
   const [status, setStatus] = useState("");
   const theme = CARD_THEMES[selectedTheme];
-  // ref for ViewShot capture
   const cardRef = useRef<ViewShot>(null);
 
   const handleShare = async () => {
     setIsCapturing(true);
     setStatus("Drawing card...");
     try {
-      // Capture the rendered card as an image URI
-      const uri = await captureRef(cardRef, {
-        format: "jpg",
-        quality: 0.96,
-      });
-
+      const uri = await captureRef(cardRef, { format: "jpg", quality: 0.96 });
       setStatus("Opening share options...");
-
       if (Platform.OS === "web") {
-        // Web: trigger a download via anchor tag
         const a = document.createElement("a");
         a.href = uri;
         a.download = `devotion-${Date.now()}.jpg`;
@@ -1171,7 +1175,6 @@ function ShareDevotionModal({
         setStatus("Downloaded! 🎉 Save and share on Messenger.");
         setTimeout(() => setStatus(""), 4000);
       } else {
-        // Mobile: share via native sheet
         const canShare = await Sharing.isAvailableAsync();
         if (!canShare) throw new Error("Sharing not available on this device");
         await Sharing.shareAsync(uri, {
@@ -1181,7 +1184,6 @@ function ShareDevotionModal({
         setStatus("");
       }
     } catch (err) {
-      console.log("ShareDevotionModal error:", err);
       setStatus("Something went wrong. Try again.");
       setTimeout(() => setStatus(""), 3000);
     } finally {
@@ -1212,7 +1214,6 @@ function ShareDevotionModal({
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 32 }}
           >
-            {/* Card preview wrapped in ViewShot for capture */}
             <View style={sm.cardPreviewWrap}>
               <ScrollView
                 horizontal
@@ -1244,42 +1245,100 @@ function ShareDevotionModal({
                 </Text>
               </View>
             </View>
-
             <Text style={sm.sectionLabel}>THEME</Text>
             <View style={sm.themeRow}>
-              {CARD_THEMES.map((t, idx) => (
-                <TouchableOpacity
-                  key={t.id}
-                  onPress={() => setSelectedTheme(idx)}
-                  style={[
-                    sm.themeBtn,
-                    { backgroundColor: t.bg, borderColor: t.borderColor },
-                    selectedTheme === idx && {
-                      borderColor: t.accent,
-                      borderWidth: 2,
-                    },
-                  ]}
-                >
-                  <FontAwesome6
-                    name={t.emoji}
-                    size={18}
-                    color={t.accentLight}
-                    style={{ marginBottom: 4 }}
-                  />
-                  <Text style={[sm.themeLabel, { color: t.accentLight }]}>
-                    {t.label}
-                  </Text>
-                  {selectedTheme === idx && (
+              {CARD_THEMES.map((t, idx) => {
+                const isActive = selectedTheme === idx;
+                return (
+                  <TouchableOpacity
+                    key={t.id}
+                    onPress={() => setSelectedTheme(idx)}
+                    style={[
+                      sm.themeBtn,
+                      {
+                        backgroundColor: t.bg,
+                        borderColor: isActive ? t.accent : t.borderColor,
+                      },
+                      isActive && { borderWidth: 2 },
+                    ]}
+                  >
+                    {/* Icon — uses theme's own accentLight */}
+                    <FontAwesome6
+                      name={t.emoji}
+                      size={14}
+                      color={t.accentLight}
+                      style={{ opacity: isActive ? 1 : 0.7, marginTop: 2 }}
+                    />
+                    {/* Mini card preview */}
                     <View
-                      style={[sm.themeCheck, { backgroundColor: t.accent }]}
+                      style={{
+                        width: "100%",
+                        paddingHorizontal: 6,
+                        paddingTop: 4,
+                        paddingBottom: 4,
+                        gap: 4,
+                      }}
                     >
-                      <IconCheck color="#fff" />
+                      {/* Top accent bar in theme's own color */}
+                      <View
+                        style={{
+                          height: 2,
+                          borderRadius: 1,
+                          backgroundColor: t.accent,
+                          marginBottom: 2,
+                          opacity: isActive ? 1 : 0.6,
+                        }}
+                      />
+                      {/* Title line */}
+                      <View
+                        style={{
+                          height: 4,
+                          borderRadius: 3,
+                          backgroundColor: t.titleColor,
+                          width: "70%",
+                          opacity: 0.85,
+                        }}
+                      />
+                      {/* Verse color line — this is the unique differentiator */}
+                      <View
+                        style={{
+                          height: 3,
+                          borderRadius: 2,
+                          backgroundColor: t.verseColor,
+                          width: "100%",
+                          opacity: 0.6,
+                        }}
+                      />
+                      {/* Body text line */}
+                      <View
+                        style={{
+                          height: 3,
+                          borderRadius: 2,
+                          backgroundColor: t.accentLight,
+                          width: "70%",
+                          opacity: 0.3,
+                        }}
+                      />
                     </View>
-                  )}
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        sm.themeLabel,
+                        { color: t.accentLight, opacity: isActive ? 1 : 0.75 },
+                      ]}
+                    >
+                      {t.label}
+                    </Text>
+                    {isActive && (
+                      <View
+                        style={[sm.themeCheck, { backgroundColor: t.accent }]}
+                      >
+                        <IconCheck color="#fff" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-
             {status ? (
               <View style={sm.statusBox}>
                 <Text style={[sm.statusText, { color: journalColor }]}>
@@ -1298,7 +1357,6 @@ function ShareDevotionModal({
                 </View>
               </View>
             )}
-
             <TouchableOpacity
               onPress={handleShare}
               disabled={isCapturing}
@@ -1356,21 +1414,14 @@ function ShareNoteModal({
   const [isCapturing, setIsCapturing] = useState(false);
   const [status, setStatus] = useState("");
   const theme = { ...NOTE_THEMES[selectedTheme], accent: journalColor };
-  // ref for ViewShot capture
   const cardRef = useRef<ViewShot>(null);
 
   const handleShare = async () => {
     setIsCapturing(true);
     setStatus("Drawing card...");
     try {
-      // Capture the rendered card as an image URI
-      const uri = await captureRef(cardRef, {
-        format: "jpg",
-        quality: 0.96,
-      });
-
+      const uri = await captureRef(cardRef, { format: "jpg", quality: 0.96 });
       setStatus("Opening share options...");
-
       if (Platform.OS === "web") {
         const a = document.createElement("a");
         a.href = uri;
@@ -1388,7 +1439,6 @@ function ShareNoteModal({
         setStatus("");
       }
     } catch (err) {
-      console.log("ShareNoteModal error:", err);
       setStatus("Something went wrong. Try again.");
       setTimeout(() => setStatus(""), 3000);
     } finally {
@@ -1423,7 +1473,6 @@ function ShareNoteModal({
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 32 }}
           >
-            {/* Card preview wrapped in ViewShot for capture */}
             <View style={sm.cardPreviewWrap}>
               <ScrollView
                 horizontal
@@ -1457,42 +1506,107 @@ function ShareNoteModal({
                 </Text>
               </View>
             </View>
-
             <Text style={sm.sectionLabel}>BACKGROUND</Text>
             <View style={sm.themeRow}>
-              {NOTE_THEMES.map((t, idx) => (
-                <TouchableOpacity
-                  key={t.id}
-                  onPress={() => setSelectedTheme(idx)}
-                  style={[
-                    sm.themeBtn,
-                    { backgroundColor: t.bg, borderColor: t.borderColor },
-                    selectedTheme === idx && {
-                      borderColor: journalColor,
-                      borderWidth: 2,
-                    },
-                  ]}
-                >
-                  <FontAwesome6
-                    name={t.emoji}
-                    size={18}
-                    color={journalColor}
-                    style={{ marginBottom: 4 }}
-                  />
-                  <Text style={[sm.themeLabel, { color: journalColor }]}>
-                    {t.label}
-                  </Text>
-                  {selectedTheme === idx && (
+              {NOTE_THEMES.map((t, idx) => {
+                const isActive = selectedTheme === idx;
+                return (
+                  <TouchableOpacity
+                    key={t.id}
+                    onPress={() => setSelectedTheme(idx)}
+                    style={[
+                      sm.themeBtn,
+                      {
+                        backgroundColor: t.bg,
+                        borderColor: isActive ? journalColor : t.borderColor,
+                      },
+                      isActive && { borderWidth: 2 },
+                    ]}
+                  >
+                    {/* Icon */}
+                    <FontAwesome6
+                      name={t.emoji}
+                      size={14}
+                      color={isActive ? journalColor : (t as any).previewAccent}
+                      style={{ opacity: isActive ? 1 : 0.7, marginTop: 2 }}
+                    />
+                    {/* Mini card preview */}
                     <View
-                      style={[sm.themeCheck, { backgroundColor: journalColor }]}
+                      style={{
+                        width: "100%",
+                        paddingHorizontal: 6,
+                        paddingTop: 4,
+                        paddingBottom: 4,
+                        gap: 4,
+                      }}
                     >
-                      <IconCheck color="#fff" />
+                      {/* Accent bar — uses theme's own previewAccent */}
+                      <View
+                        style={{
+                          height: 2,
+                          borderRadius: 1,
+                          backgroundColor: (t as any).previewAccent,
+                          marginBottom: 2,
+                          opacity: isActive ? 1 : 0.6,
+                        }}
+                      />
+                      {/* Title line — bright */}
+                      <View
+                        style={{
+                          height: 4,
+                          borderRadius: 3,
+                          backgroundColor: t.titleColor,
+                          width: "70%",
+                          opacity: 0.85,
+                        }}
+                      />
+                      {/* Body lines — theme accent tinted */}
+                      <View
+                        style={{
+                          height: 3,
+                          borderRadius: 2,
+                          backgroundColor: (t as any).previewAccent,
+                          width: "100%",
+                          opacity: 0.45,
+                        }}
+                      />
+                      <View
+                        style={{
+                          height: 3,
+                          borderRadius: 2,
+                          backgroundColor: (t as any).previewAccent,
+                          width: "70%",
+                          opacity: 0.3,
+                        }}
+                      />
                     </View>
-                  )}
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        sm.themeLabel,
+                        {
+                          color: isActive
+                            ? journalColor
+                            : (t as any).previewAccent,
+                          opacity: isActive ? 1 : 0.8,
+                        },
+                      ]}
+                    >
+                      {t.label}
+                    </Text>
+                    {isActive && (
+                      <View
+                        style={[
+                          sm.themeCheck,
+                          { backgroundColor: journalColor },
+                        ]}
+                      >
+                        <IconCheck color="#fff" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-
             {status ? (
               <View style={sm.statusBox}>
                 <Text style={[sm.statusText, { color: journalColor }]}>
@@ -1511,7 +1625,6 @@ function ShareNoteModal({
                 </View>
               </View>
             )}
-
             <TouchableOpacity
               onPress={handleShare}
               disabled={isCapturing}
@@ -1607,10 +1720,12 @@ const sm = StyleSheet.create({
     alignItems: "center",
     borderRadius: 14,
     borderWidth: 1,
-    paddingVertical: 14,
+    paddingTop: 8,
+    paddingBottom: 8,
     paddingHorizontal: 4,
-    gap: 5,
+    gap: 3,
     position: "relative",
+    overflow: "hidden",
   },
   themeLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 0.3 },
   themeCheck: {
@@ -1659,76 +1774,56 @@ const sm = StyleSheet.create({
   },
 });
 
-// ─── Segment Row ──────────────────────────────────────────────────────────────
+// ─── NEW: Single TextInput Editor ─────────────────────────────────────────────
+//
+// Pinalitan ang multi-segment approach ng single TextInput para maayos ang
+// text selection across "paragraphs". Ang formatting ay naka-store per-paragraph
+// (split by \n) pero ang input mismo ay iisang TextInput lang.
+//
+// Paano gumagana:
+//  - Ang `segments` ay ginagamit pa rin para sa storage/card preview
+//  - Kapag nag-type ang user, ini-sync ang plaintext sa segments
+//  - Ang active paragraph ay nata-track via cursor position (onSelectionChange)
+//  - Formatting buttons ay nag-a-apply sa current paragraph ng cursor
 
-function SegmentRow({
-  seg,
-  isActive,
-  journalColor,
-  onFocus,
-  onChange,
-  onKeyPress,
-  onSubmitEditing,
-  inputRef,
-}: {
-  seg: Segment;
-  isActive: boolean;
-  journalColor: string;
-  onFocus: () => void;
-  onChange: (text: string) => void;
-  onKeyPress: (e: any) => void;
-  onSubmitEditing: () => void;
-  inputRef: (ref: TextInput | null) => void;
-}) {
-  const textStyle = getSegmentTextStyle(seg);
-
-  return (
-    <View
-      style={
-        seg.highlight
-          ? [sr.highlightWrap, { backgroundColor: seg.highlight }]
-          : sr.rowWrap
-      }
-    >
-      <TextInput
-        ref={inputRef}
-        style={[sr.input, textStyle, { textAlign: seg.align ?? "left" }]}
-        value={seg.text}
-        onChangeText={onChange}
-        onFocus={onFocus}
-        onKeyPress={onKeyPress}
-        multiline={true}
-        blurOnSubmit={false}
-        scrollEnabled={false}
-        selectionColor={journalColor}
-        placeholder={isActive && seg.text === "" ? "Write here..." : ""}
-        placeholderTextColor={journalColor + "30"}
-        autoCorrect
-        autoCapitalize="sentences"
-      />
-    </View>
-  );
+function getRichText(segments: Segment[]): string {
+  return segments.map((s) => s.text).join("\n");
 }
 
-const sr = StyleSheet.create({
-  rowWrap: {
-    flex: 1,
-    maxWidth: "100%",
-  },
-  highlightWrap: {
-    borderRadius: 4,
-    marginHorizontal: 4,
-    marginVertical: 1,
-    // highlight bg is set inline — input inside has transparent bg
-  },
-  input: {
-    paddingHorizontal: 18,
-    paddingVertical: 3,
-    color: "#f0f0f0",
-    backgroundColor: "transparent",
-    minHeight: 32,
-  } as any,
-});
+function syncTextToSegments(
+  newText: string,
+  oldSegments: Segment[],
+  fmt: Partial<Segment>,
+): Segment[] {
+  const lines = newText.split("\n");
+  return lines.map((line, i) => {
+    // Reuse existing segment if available (preserve formatting), else create new
+    if (oldSegments[i]) {
+      return { ...oldSegments[i], text: line };
+    }
+    return defaultSegment({
+      text: line,
+      bold: fmt.bold,
+      italic: fmt.italic,
+      underline: fmt.underline,
+      strikethrough: fmt.strikethrough,
+      fontSize: fmt.fontSize ?? 16,
+      color: fmt.color ?? "#f0f0f0",
+      highlight: fmt.highlight ?? "",
+      heading: fmt.heading,
+      align: fmt.align ?? "left",
+    });
+  });
+}
+
+function getActiveParagraphIndex(text: string, cursorPos: number): number {
+  const before = text.slice(0, cursorPos);
+  return before.split("\n").length - 1;
+}
+
+// ─── Rendered Paragraphs (read-only display with formatting, shown when not focused) ──
+// NOTE: We use a single TextInput for editing. Formatting is purely visual reference
+// in the toolbar; the actual styled preview is shown via segments in the card share.
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -1747,7 +1842,6 @@ export default function NoteForm() {
   const newKey = asString(params.newKey, "");
 
   const storageKey = STORAGE_KEYS.notes(journalId);
-
   const isNewNote = !!newKey || !noteId;
 
   const [title, setTitle] = useState(isNewNote ? "" : initialTitle);
@@ -1756,14 +1850,24 @@ export default function NoteForm() {
   const verseRefRef = useRef(isNewNote ? "" : paramVerseRef);
   const verseTextRef = useRef(isNewNote ? "" : paramVerseText);
 
+  // ── Single text value for the editor ──────────────────────────────────────
+  // This is the single source of truth for the TextInput
+  const [editorText, setEditorText] = useState("");
+  const editorTextRef = useRef("");
+
   const [segments, setSegments] = useState<Segment[]>([defaultSegment()]);
   const segsRef = useRef<Segment[]>([defaultSegment()]);
 
-  const [history, setHistory] = useState<Segment[][]>([]);
-  const [future, setFuture] = useState<Segment[][]>([]);
+  // Track cursor position to know which paragraph is "active"
+  const [cursorPos, setCursorPos] = useState(0);
+  const cursorPosRef = useRef(0);
+
+  const [history, setHistory] = useState<{ text: string; segs: Segment[] }[]>(
+    [],
+  );
+  const [future, setFuture] = useState<{ text: string; segs: Segment[] }[]>([]);
   const [kbHeight, setKbHeight] = useState(0);
 
-  const [activeIdx, setActiveIdx] = useState(0);
   const [fmt, setFmt] = useState<Partial<Segment>>({
     bold: false,
     italic: false,
@@ -1803,10 +1907,32 @@ export default function NoteForm() {
   const emotionRef = useRef<EmotionEntry | undefined>(undefined);
   const activitiesRef = useRef<string[]>([]);
   const tagsRef = useRef<string[]>([]);
-  const inputRefs = useRef<Record<string, TextInput | null>>({});
 
-  const hasContent = segsRef.current.some((s) => s.text.trim().length > 0);
+  // Single ref for the one TextInput
+  const editorInputRef = useRef<TextInput>(null);
+
+  const hasContent = editorText.trim().length > 0;
   const isDevotionNote = !!(verseRef || verseText);
+
+  // ── Active paragraph index from cursor ──────────────────────────────────────
+  const activeParagraphIdx = getActiveParagraphIndex(editorText, cursorPos);
+
+  // ── Sync fmt when cursor moves to different paragraph ───────────────────────
+  useEffect(() => {
+    const seg = segsRef.current[activeParagraphIdx];
+    if (!seg) return;
+    setFmt({
+      bold: seg.bold ?? false,
+      italic: seg.italic ?? false,
+      underline: seg.underline ?? false,
+      strikethrough: seg.strikethrough ?? false,
+      fontSize: seg.fontSize ?? 16,
+      color: seg.color ?? "#f0f0f0",
+      highlight: seg.highlight ?? "",
+      heading: seg.heading,
+      align: seg.align ?? "left",
+    });
+  }, [activeParagraphIdx]);
 
   // ── Keyboard listeners ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -1815,11 +1941,8 @@ export default function NoteForm() {
     const hideEvt =
       Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
     const s1 = Keyboard.addListener(showEvt, (e: KeyboardEvent) => {
-      // e.endCoordinates.screenY is the top of the keyboard from screen top
-      // This is the most reliable way to get true keyboard height
       const screenHeight = Dimensions.get("window").height;
-      const keyboardHeight = screenHeight - e.endCoordinates.screenY;
-      setKbHeight(keyboardHeight);
+      setKbHeight(screenHeight - e.endCoordinates.screenY);
     });
     const s2 = Keyboard.addListener(hideEvt, () => setKbHeight(0));
     return () => {
@@ -1849,12 +1972,15 @@ export default function NoteForm() {
         isSaving.current = false;
 
         setTitle("");
+        setEditorText("");
+        editorTextRef.current = "";
+        setCursorPos(0);
+        cursorPosRef.current = 0;
         setHistory([]);
         setFuture([]);
         setVerseRef(asString(params.verseRef as any, ""));
         setVerseText(asString(params.verseText as any, ""));
         setSegments([blankSeg]);
-        setActiveIdx(0);
         setEmotion(undefined);
         setActivities([]);
         setTags([]);
@@ -1885,39 +2011,18 @@ export default function NoteForm() {
     }, [params.id, params.newKey]),
   );
 
-  // ── Sync fmt when active segment changes ────────────────────────────────────
-  useEffect(() => {
-    const seg = segsRef.current[activeIdx];
-    if (!seg) return;
-    setFmt({
-      bold: seg.bold ?? false,
-      italic: seg.italic ?? false,
-      underline: seg.underline ?? false,
-      strikethrough: seg.strikethrough ?? false,
-      fontSize: seg.fontSize ?? 16,
-      color: seg.color ?? "#f0f0f0",
-      highlight: seg.highlight ?? "",
-      heading: seg.heading,
-      align: seg.align ?? "left",
-    });
-  }, [activeIdx, segments]);
-
   // ── Load global tags ────────────────────────────────────────────────────────
   const loadGlobalTags = async () => {
     try {
       const stored = await Storage.getItem(STORAGE_KEYS.tags);
       setGlobalTags(stored ? JSON.parse(stored) : []);
-    } catch (err) {
-      console.log("loadGlobalTags error:", err);
-    }
+    } catch (err) {}
   };
 
   const saveGlobalTags = async (next: string[]) => {
     try {
       await Storage.setItem(STORAGE_KEYS.tags, JSON.stringify(next));
-    } catch (err) {
-      console.log("saveGlobalTags error:", err);
-    }
+    } catch (err) {}
   };
 
   // ── Load note ───────────────────────────────────────────────────────────────
@@ -1934,6 +2039,10 @@ export default function NoteForm() {
         : [defaultSegment({ text: existing.text })];
       segsRef.current = segs;
       setSegments([...segs]);
+      // Rebuild editor text from segments
+      const text = getRichText(segs);
+      setEditorText(text);
+      editorTextRef.current = text;
       latestRef.current = { title: existing.title, segments: segs };
       if (existing.emotion) {
         setEmotion(existing.emotion);
@@ -1956,9 +2065,7 @@ export default function NoteForm() {
         setVerseText(existing.verseText);
         verseTextRef.current = existing.verseText;
       }
-    } catch (err) {
-      console.log("loadNote error:", err);
-    }
+    } catch (err) {}
   };
 
   // ── Save ────────────────────────────────────────────────────────────────────
@@ -2023,9 +2130,7 @@ export default function NoteForm() {
         ];
       }
       await Storage.setItem(storageKey, JSON.stringify(updated));
-    } catch (err) {
-      console.log("saveNow error:", err);
-    }
+    } catch (err) {}
     hasChanges.current = false;
     isSaving.current = false;
   };
@@ -2053,112 +2158,72 @@ export default function NoteForm() {
     });
   };
 
-  // ── Segment operations ──────────────────────────────────────────────────────
-  const pushSegments = (next: Segment[], skipHistory = false) => {
-    if (!skipHistory) {
-      setHistory((h) => [...h.slice(-30), segsRef.current]);
-      setFuture([]);
-    }
-    segsRef.current = next;
-    latestRef.current.segments = next;
-    setSegments([...next]);
+  // ── Editor text change ──────────────────────────────────────────────────────
+  // This is the core handler. Single TextInput, syncs to segments.
+  const handleEditorChange = (newText: string) => {
+    // Push undo history every ~500ms worth of changes (simplified: on every change batch)
+    setHistory((h) => [
+      ...h.slice(-30),
+      { text: editorTextRef.current, segs: segsRef.current },
+    ]);
+    setFuture([]);
+
+    const newSegs = syncTextToSegments(newText, segsRef.current, fmt);
+    segsRef.current = newSegs;
+    setSegments([...newSegs]);
+    editorTextRef.current = newText;
+    setEditorText(newText);
+    latestRef.current.segments = newSegs;
     triggerSave();
   };
 
-  const patchSeg = (idx: number, patch: Partial<Segment>) => {
-    const next = segsRef.current.map((s, i) =>
-      i === idx ? { ...s, ...patch } : s,
-    );
-    pushSegments(next);
-  };
-
-  const handleSegChange = (idx: number, newText: string) => {
-    if (!newText.includes("\n")) {
-      patchSeg(idx, { text: newText });
-      return;
-    }
-    const parts = newText.split("\n");
-    const cur = segsRef.current[idx];
-    const before = segsRef.current.slice(0, idx);
-    const after = segsRef.current.slice(idx + 1);
-    const newSegs: Segment[] = [
-      ...before,
-      { ...cur, text: parts[0] },
-      ...parts.slice(1).map((p) =>
-        defaultSegment({
-          text: p,
-          fontSize: cur.fontSize,
-          color: cur.color,
-          align: cur.align,
-        }),
-      ),
-      ...after,
-    ];
-    pushSegments(newSegs);
-    const insertedCount = parts.length - 1;
-    setTimeout(() => {
-      const targetIdx = idx + insertedCount;
-      setActiveIdx(targetIdx);
-      inputRefs.current[newSegs[targetIdx]?.id]?.focus();
-    }, 30);
-  };
-
+  // ── Undo / Redo ─────────────────────────────────────────────────────────────
   const handleUndo = () => {
     if (history.length === 0) return;
     const prev = history[history.length - 1];
-    setFuture((f) => [segsRef.current, ...f.slice(0, 30)]);
+    setFuture((f) => [
+      { text: editorTextRef.current, segs: segsRef.current },
+      ...f.slice(0, 30),
+    ]);
     setHistory((h) => h.slice(0, -1));
-    segsRef.current = prev;
-    latestRef.current.segments = prev;
-    setSegments([...prev]);
+    segsRef.current = prev.segs;
+    editorTextRef.current = prev.text;
+    setSegments([...prev.segs]);
+    setEditorText(prev.text);
+    latestRef.current.segments = prev.segs;
     triggerSave();
   };
 
   const handleRedo = () => {
     if (future.length === 0) return;
     const next = future[0];
-    setHistory((h) => [...h.slice(-30), segsRef.current]);
+    setHistory((h) => [
+      ...h.slice(-30),
+      { text: editorTextRef.current, segs: segsRef.current },
+    ]);
     setFuture((f) => f.slice(1));
-    segsRef.current = next;
-    latestRef.current.segments = next;
-    setSegments([...next]);
+    segsRef.current = next.segs;
+    editorTextRef.current = next.text;
+    setSegments([...next.segs]);
+    setEditorText(next.text);
+    latestRef.current.segments = next.segs;
     triggerSave();
   };
 
-  const handleSegSubmit = (idx: number) => {
-    const cur = segsRef.current[idx];
-    const before = segsRef.current.slice(0, idx + 1);
-    const after = segsRef.current.slice(idx + 1);
-    const newSeg = defaultSegment({
-      fontSize: cur.fontSize,
-      color: cur.color,
-      align: cur.align,
-    });
-    const newSegs = [...before, newSeg, ...after];
-    pushSegments(newSegs);
-    setTimeout(() => {
-      setActiveIdx(idx + 1);
-      inputRefs.current[newSeg.id]?.focus();
-    }, 30);
-  };
-
-  const handleSegKeyPress = (idx: number, e: any) => {
-    if (e.nativeEvent.key !== "Backspace") return;
-    const cur = segsRef.current[idx];
-    if (cur.text.length > 0 || idx === 0) return;
-    const prev = segsRef.current[idx - 1];
-    const newSegs = segsRef.current.filter((_, i) => i !== idx);
-    pushSegments(newSegs);
-    setTimeout(() => {
-      setActiveIdx(idx - 1);
-      inputRefs.current[prev?.id]?.focus();
-    }, 30);
-  };
-
   // ── Formatting ──────────────────────────────────────────────────────────────
+  // Applies formatting to the current paragraph (where cursor is)
   const applyFmt = (patch: Partial<Segment>) => {
-    patchSeg(activeIdx, patch);
-    setFmt((prev) => ({ ...prev, ...patch }));
+    const newFmt = { ...fmt, ...patch };
+    setFmt(newFmt);
+    // Apply to the active paragraph segment
+    const idx = activeParagraphIdx;
+    const newSegs = segsRef.current.map((s, i) =>
+      i === idx ? { ...s, ...patch } : s,
+    );
+    segsRef.current = newSegs;
+    setSegments([...newSegs]);
+    latestRef.current.segments = newSegs;
+    triggerSave();
   };
 
   const toggleFmt = (
@@ -2182,7 +2247,6 @@ export default function NoteForm() {
       label: def.words[intensity - 1],
       color: def.color,
     });
-    setPicker(null);
   };
 
   const toggleActivity = (id: string) => {
@@ -2197,12 +2261,12 @@ export default function NoteForm() {
   const addTag = (raw: string) => {
     const tag = raw.trim().replace(/^#/, "").toLowerCase();
     if (!tag || tagsRef.current.includes(tag)) return;
+    if (tagsRef.current.length >= MAX_TAGS) return;
     const next = [...tagsRef.current, tag];
     tagsRef.current = next;
     setTags(next);
     setTagInput("");
     triggerSave();
-    // Also add to global tags if not yet there
     if (!globalTags.includes(tag)) {
       const nextGlobal = [...globalTags, tag].sort();
       setGlobalTags(nextGlobal);
@@ -2214,7 +2278,6 @@ export default function NoteForm() {
     const nextGlobal = globalTags.filter((t) => t !== tag);
     setGlobalTags(nextGlobal);
     saveGlobalTags(nextGlobal);
-    // Also remove from current note if applied
     removeTag(tag);
   };
 
@@ -2222,6 +2285,7 @@ export default function NoteForm() {
     if (tagsRef.current.includes(tag)) {
       removeTag(tag);
     } else {
+      if (tagsRef.current.length >= MAX_TAGS) return;
       const next = [...tagsRef.current, tag];
       tagsRef.current = next;
       setTags(next);
@@ -2241,20 +2305,15 @@ export default function NoteForm() {
       ? setShowDevotionShareModal(true)
       : setShowNoteShareModal(true);
 
-  // toolbarBottom: where the bottom of the floating toolbar anchors
-  // keyboard up  → sits flush on top of keyboard
-  // keyboard down → sits just above the device safe area
-  const toolbarBottom = kbHeight > 0 ? kbHeight : insets.bottom;
-  // Total height occupied by the bottom bar (undoRow + toolbar)
   const TOOLBAR_H = 48;
   const UNDO_H = 36;
   const bottomBarH = TOOLBAR_H + UNDO_H;
-  const wordCount = segments
-    .map((s) => s.text)
-    .join(" ")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean).length;
+  const toolbarBottom = kbHeight > 0 ? kbHeight : insets.bottom;
+
+  const wordCount = editorText.trim().split(/\s+/).filter(Boolean).length;
+
+  // ── Active paragraph style (shows in toolbar which format is active) ─────────
+  const activeSeg = segsRef.current[activeParagraphIdx];
 
   return (
     <View style={{ flex: 1, backgroundColor: "#161616" }}>
@@ -2299,10 +2358,7 @@ export default function NoteForm() {
         selectionColor={journalColor}
         returnKeyType="next"
         onSubmitEditing={() => {
-          setTimeout(() => {
-            const seg = segsRef.current[0];
-            if (seg) inputRefs.current[seg.id]?.focus();
-          }, 50);
+          setTimeout(() => editorInputRef.current?.focus(), 50);
         }}
       />
 
@@ -2319,7 +2375,9 @@ export default function NoteForm() {
         </View>
       ) : null}
 
-      {/* Rich Text Editor */}
+      {/* ── SINGLE TextInput Editor ─────────────────────────────────────────── */}
+      {/* Replacing the segment-per-paragraph approach with one TextInput.       */}
+      {/* This allows native text selection to work freely across all paragraphs.*/}
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={[
@@ -2327,44 +2385,43 @@ export default function NoteForm() {
           { paddingBottom: toolbarBottom + bottomBarH + 8 },
         ]}
         keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled={true}
       >
-        {segments.map((seg, idx) => (
-          <SegmentRow
-            key={seg.id}
-            seg={seg}
-            isActive={activeIdx === idx}
-            journalColor={journalColor}
-            onFocus={() => setActiveIdx(idx)}
-            onChange={(text) => handleSegChange(idx, text)}
-            onKeyPress={(e) => handleSegKeyPress(idx, e)}
-            onSubmitEditing={() => handleSegSubmit(idx)}
-            inputRef={(ref) => {
-              inputRefs.current[seg.id] = ref;
-            }}
-          />
-        ))}
+        <TextInput
+          ref={editorInputRef}
+          style={[
+            s.editorInput,
+            // Apply the active paragraph's style to the whole input as a base.
+            // Full per-character rich text is not possible in a single RN TextInput,
+            // but we show formatting in the toolbar and apply it to paragraphs on save.
+            activeSeg ? getSegmentTextStyle(activeSeg) : {},
+          ]}
+          value={editorText}
+          onChangeText={handleEditorChange}
+          onSelectionChange={(e) => {
+            const pos = e.nativeEvent.selection.start;
+            cursorPosRef.current = pos;
+            setCursorPos(pos);
+          }}
+          multiline={true}
+          scrollEnabled={false} // Let parent ScrollView handle scrolling
+          blurOnSubmit={false}
+          selectionColor={journalColor}
+          placeholder="Write here..."
+          placeholderTextColor={journalColor + "30"}
+          autoCorrect={true}
+          autoCapitalize="sentences"
+          textAlignVertical="top"
+        />
+        {/* Tap area below content to focus editor */}
         <TouchableOpacity
           style={s.editorTapArea}
           activeOpacity={1}
-          onPress={() => {
-            const last = segsRef.current[segsRef.current.length - 1];
-            if (last && last.text.trim() === "") {
-              setActiveIdx(segsRef.current.length - 1);
-              inputRefs.current[last.id]?.focus();
-            } else {
-              const newSeg = defaultSegment();
-              const newSegs = [...segsRef.current, newSeg];
-              pushSegments(newSegs);
-              setTimeout(() => {
-                setActiveIdx(newSegs.length - 1);
-                inputRefs.current[newSeg.id]?.focus();
-              }, 30);
-            }
-          }}
+          onPress={() => editorInputRef.current?.focus()}
         />
       </ScrollView>
 
-      {/* Undo/Redo + word count bar */}
+      {/* Undo/Redo + word count / tags bar */}
       <View
         style={[s.undoBar, { bottom: toolbarBottom + TOOLBAR_H }]}
         onStartShouldSetResponder={() => false}
@@ -2498,20 +2555,26 @@ export default function NoteForm() {
           <Divider />
           <ToolBtn
             icon="mood"
-            onPress={() => setPicker("mood")}
+            onPress={() => {
+              loadGlobalTags();
+              setPicker("mood");
+            }}
             hasEmotion={!!emotion}
             emotionColor={emotion?.color}
           />
           <ToolBtn
             icon="tags"
             active={tags.length > 0}
-            onPress={() => setPicker("tags")}
+            onPress={() => {
+              loadGlobalTags();
+              setPicker("tags");
+            }}
             activeColor={journalColor}
           />
         </ScrollView>
       </View>
 
-      {/* Bottom sheets */}
+      {/* Bottom sheets — Heading */}
       <BottomSheet
         visible={picker === "heading"}
         title="Heading Style"
@@ -2542,6 +2605,7 @@ export default function NoteForm() {
         ))}
       </BottomSheet>
 
+      {/* Font Size */}
       <BottomSheet
         visible={picker === "fontSize"}
         title="Font Size"
@@ -2568,6 +2632,7 @@ export default function NoteForm() {
         ))}
       </BottomSheet>
 
+      {/* Color */}
       <BottomSheet
         visible={picker === "color"}
         title="Font Color"
@@ -2592,6 +2657,7 @@ export default function NoteForm() {
         </View>
       </BottomSheet>
 
+      {/* Highlight */}
       <BottomSheet
         visible={picker === "highlight"}
         title="Highlight"
@@ -2776,77 +2842,63 @@ export default function NoteForm() {
                 })}
               </View>
 
-              <Text style={[s.moodSectionLabel, { marginTop: 20 }]}>TAGS</Text>
-
-              {/* Global tags — tap to toggle on/off for this note */}
-              {globalTags.length > 0 && (
-                <View style={s.tagPillsWrap}>
+              <View style={[s.tagSectionHeader, { marginTop: 20 }]}>
+                <Text style={s.moodSectionLabel}>TAGS</Text>
+                <Text style={s.tagCounter}>
+                  {tags.length}/{MAX_TAGS}
+                </Text>
+              </View>
+              {globalTags.length > 0 ? (
+                <View style={s.moodTagsGrid}>
                   {globalTags.map((tag) => {
                     const isActive = tags.includes(tag);
+                    const isDisabled = !isActive && tags.length >= MAX_TAGS;
                     return (
-                      <View key={tag} style={s.tagPickerRow}>
-                        <TouchableOpacity
-                          onPress={() => toggleTag(tag)}
-                          style={[
-                            s.tagPickerPill,
-                            isActive
+                      <TouchableOpacity
+                        key={tag}
+                        onPress={() => toggleTag(tag)}
+                        disabled={isDisabled}
+                        style={[
+                          s.moodTagPill,
+                          isActive
+                            ? {
+                                backgroundColor: journalColor + "33",
+                                borderColor: journalColor,
+                              }
+                            : isDisabled
                               ? {
-                                  backgroundColor: journalColor + "33",
-                                  borderColor: journalColor,
+                                  backgroundColor: "#141414",
+                                  borderColor: "#1e1e1e",
                                 }
                               : {
                                   backgroundColor: "#1a1a1a",
                                   borderColor: "#2a2a2a",
                                 },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            s.moodTagText,
+                            {
+                              color: isActive
+                                ? journalColor
+                                : isDisabled
+                                  ? "#333"
+                                  : "#666",
+                            },
                           ]}
                         >
-                          <Text
-                            style={[
-                              s.tagPickerText,
-                              { color: isActive ? journalColor : "#555" },
-                            ]}
-                          >
-                            #{tag}
-                          </Text>
-                          {isActive && <IconCheck color={journalColor} />}
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => deleteGlobalTag(tag)}
-                          style={s.tagDeleteBtn}
-                          hitSlop={8}
-                        >
-                          <IconX color="#333" />
-                        </TouchableOpacity>
-                      </View>
+                          #{tag}
+                        </Text>
+                        {isActive && <IconCheck color={journalColor} />}
+                      </TouchableOpacity>
                     );
                   })}
                 </View>
-              )}
-
-              {/* Add new global tag */}
-              <View style={s.tagInputRow}>
-                <TextInput
-                  style={s.tagTextInput}
-                  placeholder="Create new tag..."
-                  placeholderTextColor="#444"
-                  value={tagInput}
-                  onChangeText={setTagInput}
-                  onSubmitEditing={() => addTag(tagInput)}
-                  returnKeyType="done"
-                  selectionColor={journalColor}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity
-                  onPress={() => addTag(tagInput)}
-                  style={[s.tagAddBtn, { backgroundColor: journalColor }]}
-                >
-                  <Text style={{ color: "#fff", fontWeight: "600" }}>Add</Text>
-                </TouchableOpacity>
-              </View>
-
-              {globalTags.length === 0 && (
+              ) : (
                 <Text style={s.tagEmptyHint}>
-                  Create tags above — they'll be reusable across all your notes.
+                  Wala pang tags. Gumawa ng tag sa pamamagitan ng # button sa
+                  toolbar.
                 </Text>
               )}
             </ScrollView>
@@ -2874,38 +2926,77 @@ export default function NoteForm() {
                 <IconX color="#555" />
               </TouchableOpacity>
             </View>
-
             <ScrollView
               style={{ maxHeight: 420 }}
               contentContainerStyle={{ paddingBottom: 24 }}
               keyboardShouldPersistTaps="handled"
             >
-              {/* Tag picker — tap to toggle */}
+              {/* Counter */}
+              <View
+                style={[
+                  s.tagSectionHeader,
+                  { marginHorizontal: 18, marginTop: 14, marginBottom: 6 },
+                ]}
+              >
+                <Text style={s.tagCounterLabel}>Selected</Text>
+                <Text
+                  style={[
+                    s.tagCounter,
+                    { color: tags.length >= MAX_TAGS ? "#ef4444" : "#555" },
+                  ]}
+                >
+                  {tags.length}/{MAX_TAGS}
+                </Text>
+              </View>
+              {tags.length >= MAX_TAGS && (
+                <Text
+                  style={[
+                    s.tagEmptyHint,
+                    { color: "#ef444488", marginBottom: 8 },
+                  ]}
+                >
+                  Maximum na. Mag-remove muna ng tag para makapili ng iba.
+                </Text>
+              )}
               {globalTags.length > 0 ? (
-                <View style={s.tagPickerGrid}>
+                <View style={s.moodTagsGrid}>
                   {globalTags.map((tag) => {
                     const isActive = tags.includes(tag);
+                    const isDisabled = !isActive && tags.length >= MAX_TAGS;
                     return (
-                      <View key={tag} style={s.tagPickerRow}>
+                      <View key={tag} style={s.moodTagPillRow}>
                         <TouchableOpacity
                           onPress={() => toggleTag(tag)}
+                          disabled={isDisabled}
                           style={[
-                            s.tagPickerPill,
+                            s.moodTagPill,
+                            { flex: 1 },
                             isActive
                               ? {
                                   backgroundColor: journalColor + "33",
                                   borderColor: journalColor,
                                 }
-                              : {
-                                  backgroundColor: "#1a1a1a",
-                                  borderColor: "#2a2a2a",
-                                },
+                              : isDisabled
+                                ? {
+                                    backgroundColor: "#141414",
+                                    borderColor: "#1e1e1e",
+                                  }
+                                : {
+                                    backgroundColor: "#1a1a1a",
+                                    borderColor: "#2a2a2a",
+                                  },
                           ]}
                         >
                           <Text
                             style={[
-                              s.tagPickerText,
-                              { color: isActive ? journalColor : "#666" },
+                              s.moodTagText,
+                              {
+                                color: isActive
+                                  ? journalColor
+                                  : isDisabled
+                                    ? "#333"
+                                    : "#666",
+                              },
                             ]}
                           >
                             #{tag}
@@ -2928,8 +3019,6 @@ export default function NoteForm() {
                   No tags yet. Create a new one below.
                 </Text>
               )}
-
-              {/* Divider */}
               <View
                 style={{
                   height: 1,
@@ -2939,8 +3028,6 @@ export default function NoteForm() {
                   marginBottom: 16,
                 }}
               />
-
-              {/* Create new tag */}
               <Text style={s.moodSectionLabel}>CREATE NEW TAG</Text>
               <View style={s.tagInputRow}>
                 <TextInput
@@ -2956,7 +3043,13 @@ export default function NoteForm() {
                 />
                 <TouchableOpacity
                   onPress={() => addTag(tagInput)}
-                  style={[s.tagAddBtn, { backgroundColor: journalColor }]}
+                  style={[
+                    s.tagAddBtn,
+                    {
+                      backgroundColor: journalColor,
+                      opacity: tags.length >= MAX_TAGS ? 0.35 : 1,
+                    },
+                  ]}
                 >
                   <Text style={{ color: "#fff", fontWeight: "600" }}>Add</Text>
                 </TouchableOpacity>
@@ -3119,12 +3212,21 @@ const s = StyleSheet.create({
     lineHeight: 22,
   },
   editorContent: { paddingTop: 10 },
-  editorTapArea: { minHeight: 200 },
-  wordCount: {
-    color: "#2e2e2e",
-    fontSize: 11,
-    paddingHorizontal: 4,
-  },
+
+  // ── Single editor TextInput styles ──────────────────────────────────────────
+  editorInput: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    color: "#f0f0f0",
+    fontSize: 16,
+    lineHeight: 26,
+    minHeight: 200,
+    textAlignVertical: "top",
+    backgroundColor: "transparent",
+  } as any,
+
+  editorTapArea: { minHeight: 120 },
+  wordCount: { color: "#2e2e2e", fontSize: 11, paddingHorizontal: 4 },
   undoBar: {
     position: "absolute",
     left: 0,
@@ -3139,10 +3241,7 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#1e1e1e",
   },
-  undoBtn: {
-    padding: 6,
-    borderRadius: 6,
-  },
+  undoBtn: { padding: 6, borderRadius: 6 },
   toolbarWrap: {
     position: "absolute",
     left: 0,
@@ -3297,15 +3396,27 @@ const s = StyleSheet.create({
     fontSize: 14,
   },
   tagAddBtn: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },
-  tagPillsWrap: {
-    marginHorizontal: 18,
-    marginTop: 6,
+  tagPillsWrap: { marginHorizontal: 18, marginTop: 6, gap: 6 },
+  moodTagsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  moodTagPill: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
   },
-  tagPickerGrid: {
-    marginHorizontal: 18,
-    marginTop: 10,
-  },
+  moodTagPillRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  moodTagText: { fontSize: 13, fontWeight: "600" },
+  tagPickerGrid: { marginHorizontal: 18, marginTop: 10 },
   tagPickerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -3346,5 +3457,24 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     gap: 6,
+  },
+  tagSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: 18,
+    marginBottom: 4,
+  },
+  tagCounter: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#555",
+    letterSpacing: 0.5,
+  },
+  tagCounterLabel: {
+    fontSize: 11,
+    color: "#444",
+    fontWeight: "700",
+    letterSpacing: 1,
   },
 });
