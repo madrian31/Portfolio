@@ -12,11 +12,20 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Storage, STORAGE_KEYS } from "../storage";
 
+type EmotionEntry = {
+  label: string;
+  intensity: 1 | 2 | 3;
+  color: string;
+  valence: number;
+};
+
 type Note = {
   id: string;
   title: string;
   text: string;
   date: string;
+  emotion?: EmotionEntry;
+  tags?: string[];
 };
 
 function asString(val: string | string[] | undefined, fallback = ""): string {
@@ -63,10 +72,6 @@ export default function NoteList() {
     await Storage.setItem(storageKey, JSON.stringify(updated));
   };
 
-  // ─── Navigate to NoteForm ─────────────────────────────────────────────────
-  // For NEW notes: pass a unique `newKey` param so NoteForm always
-  // starts completely blank — Expo Router reuses screen instances, so
-  // without this key the old note's state can bleed into the new screen.
   const goToNoteForm = (noteId?: string) => {
     router.push({
       pathname: "/note-form",
@@ -141,24 +146,97 @@ export default function NoteList() {
                 ]}
                 onPress={() => goToNoteForm(noteItem.id)}
               >
+                {/* Left accent bar */}
                 <View
                   style={[styles.noteAccent, { backgroundColor: journalColor }]}
                 />
-                <View style={{ flex: 1, paddingHorizontal: 12 }}>
-                  <Text style={styles.noteTitle} numberOfLines={1}>
-                    {noteItem.title || "Untitled"}
-                  </Text>
+
+                {/* Main content */}
+                <View style={styles.noteBody}>
+                  {/* Title row + emotion dot */}
+                  <View style={styles.titleRow}>
+                    <Text style={styles.noteTitle} numberOfLines={1}>
+                      {noteItem.title || "Untitled"}
+                    </Text>
+                    {noteItem.emotion && (
+                      <View
+                        style={[
+                          styles.emotionDot,
+                          { backgroundColor: noteItem.emotion.color },
+                        ]}
+                      />
+                    )}
+                  </View>
+
+                  {/* Preview text */}
                   <Text style={styles.notePreview} numberOfLines={1}>
                     {noteItem.text}
                   </Text>
-                  <Text style={styles.noteDate}>
-                    {new Date(noteItem.date).toLocaleDateString("default", {
-                      weekday: "short",
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </Text>
+
+                  {/* Tags + date row */}
+                  <View style={styles.metaRow}>
+                    <Text style={styles.noteDate}>
+                      {new Date(noteItem.date).toLocaleDateString("default", {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </Text>
+                    {noteItem.tags && noteItem.tags.length > 0 && (
+                      <View style={styles.tagsRow}>
+                        {noteItem.tags.slice(0, 3).map((tag) => (
+                          <View
+                            key={tag}
+                            style={[
+                              styles.tagPill,
+                              { backgroundColor: journalColor + "22" },
+                            ]}
+                          >
+                            <Text
+                              style={[styles.tagText, { color: journalColor }]}
+                            >
+                              #{tag}
+                            </Text>
+                          </View>
+                        ))}
+                        {noteItem.tags.length > 3 && (
+                          <Text style={styles.tagOverflow}>
+                            +{noteItem.tags.length - 3}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Emotion label */}
+                  {noteItem.emotion && (
+                    <View style={styles.emotionRow}>
+                      <View
+                        style={[
+                          styles.emotionPill,
+                          { backgroundColor: noteItem.emotion.color + "22" },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.emotionPillDot,
+                            { backgroundColor: noteItem.emotion.color },
+                          ]}
+                        />
+                        <Text
+                          style={[
+                            styles.emotionLabel,
+                            { color: noteItem.emotion.color },
+                          ]}
+                        >
+                          {noteItem.emotion.label}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
                 </View>
+
+                {/* More button */}
                 <Pressable
                   onPress={() => {
                     setSelectedNote(noteItem);
@@ -214,12 +292,7 @@ export default function NoteList() {
                   pressed && { backgroundColor: "#1a1a1a" },
                 ]}
               >
-                <FontAwesome6
-                  name="pen-to-square"
-                  size={16}
-                  color="#e0e0e0"
-                  iconStyle="regular"
-                />
+                <FontAwesome6 name="pen-to-square" size={16} color="#e0e0e0" />
                 <Text style={styles.menuRowText}>Edit</Text>
               </Pressable>
 
@@ -293,22 +366,69 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginBottom: 8,
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "stretch",
     borderWidth: 1,
     borderColor: "#1e1e1e",
     overflow: "hidden",
   },
   noteCardPressed: { opacity: 0.7 },
-  noteAccent: { width: 4, alignSelf: "stretch" },
+  noteAccent: { width: 4 },
+  noteBody: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 3,
+  },
   noteTitle: {
     color: "#f0f0f0",
     fontSize: 15,
     fontWeight: "600",
-    marginBottom: 3,
+    flex: 1,
   },
-  notePreview: { color: "#555", fontSize: 13, marginBottom: 5 },
+  emotionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  notePreview: { color: "#555", fontSize: 13, marginBottom: 6 },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
   noteDate: { color: "#3a3a3a", fontSize: 11, fontWeight: "500" },
-  moreBtn: { paddingRight: 14, paddingVertical: 16 },
+  tagsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flexWrap: "wrap",
+  },
+  tagPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  tagText: { fontSize: 10, fontWeight: "600" },
+  tagOverflow: { color: "#444", fontSize: 10 },
+  emotionRow: { marginTop: 6 },
+  emotionPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 5,
+  },
+  emotionPillDot: { width: 6, height: 6, borderRadius: 3 },
+  emotionLabel: { fontSize: 11, fontWeight: "600" },
+  moreBtn: { paddingRight: 14, paddingVertical: 16, justifyContent: "center" },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.6)",

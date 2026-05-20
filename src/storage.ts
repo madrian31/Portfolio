@@ -8,7 +8,8 @@ export const STORAGE_KEYS = {
   journals: "journals",
   notes: (journalId: string) => `notes_${journalId}`,
   username: "username",
-  seenNamePrompt: "seen_name_prompt", // set to "1" once user has seen the onboarding popup
+  seenNamePrompt: "seen_name_prompt",
+  tags: "global_tags", // predefined tags na pwedeng gamitin sa lahat ng notes
 };
 
 // ─── Size Guard ────────────────────────────────────────────────────────────────

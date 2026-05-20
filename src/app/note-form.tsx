@@ -3,10 +3,12 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Dimensions,
   Keyboard,
   KeyboardEvent,
   Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -22,6 +24,7 @@ import Svg, {
   Rect,
   Text as SvgText,
 } from "react-native-svg";
+import ViewShot, { captureRef } from "react-native-view-shot";
 import { Storage, STORAGE_KEYS } from "../storage";
 
 // ─── Bootstrap Activity Icons ─────────────────────────────────────────────────
@@ -94,7 +97,8 @@ type IconName =
   | "alignLeft"
   | "alignCenter"
   | "alignRight"
-  | "mood";
+  | "mood"
+  | "tags";
 
 function ToolIcon({
   icon,
@@ -449,6 +453,21 @@ function ToolIcon({
           )}
         </Svg>
       );
+    case "tags":
+      return (
+        <Svg width={18} height={18} viewBox="0 0 18 18">
+          <SvgText
+            x="2"
+            y="15"
+            fontSize="16"
+            fontWeight="700"
+            fill={color}
+            fontFamily="system-ui, sans-serif"
+          >
+            #
+          </SvgText>
+        </Svg>
+      );
     default:
       return null;
   }
@@ -471,12 +490,19 @@ function ToolBtn({
 }) {
   const iconColor = active ? activeColor : "#888";
   return (
-    <TouchableOpacity
+    <Pressable
       onPress={onPress}
-      style={[
+      onStartShouldSetResponder={() => true}
+      onTouchStart={(e) => {
+        e.stopPropagation();
+        // Prevent keyboard dismiss on Android
+        if (Platform.OS === "android") e.preventDefault?.();
+      }}
+      style={({ pressed }) => [
         tbs.btn,
         active && tbs.btnActive,
         { backgroundColor: active ? activeColor + "22" : "#1c1c1c" },
+        pressed && { opacity: 0.7 },
       ]}
     >
       <ToolIcon
@@ -486,7 +512,7 @@ function ToolBtn({
         hasEmotion={hasEmotion}
         emotionColor={emotionColor}
       />
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
@@ -641,7 +667,7 @@ const ACTIVITIES = [
   { id: "none", label: "None", icon: "none" },
 ];
 
-// ─── Card Themes (unchanged) ──────────────────────────────────────────────────
+// ─── Card Themes ──────────────────────────────────────────────────────────────
 
 const CARD_THEMES = [
   {
@@ -803,448 +829,12 @@ function getSegmentTextStyle(seg: Segment): object {
             ? "line-through"
             : "none",
     color: seg.color ?? "#f0f0f0",
-    backgroundColor: seg.highlight ?? "transparent",
     textAlign: seg.align ?? "left",
     lineHeight: baseSize * 1.6,
   };
 }
 
-// ─── Canvas helpers (unchanged) ───────────────────────────────────────────────
-
-function canvasWrapText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  x: number,
-  startY: number,
-  maxWidth: number,
-  lineHeight: number,
-  maxLines = 999,
-): number {
-  const words = text.split(" ");
-  let line = "";
-  let y = startY;
-  let lineCount = 0;
-  for (let i = 0; i < words.length; i++) {
-    const testLine = line + words[i] + " ";
-    if (ctx.measureText(testLine).width > maxWidth && line !== "") {
-      if (lineCount >= maxLines - 1) {
-        let truncated = line.trim();
-        while (
-          ctx.measureText(truncated + "…").width > maxWidth &&
-          truncated.length > 0
-        ) {
-          truncated = truncated.slice(0, -1);
-        }
-        ctx.fillText(truncated + "…", x, y);
-        return y + lineHeight;
-      }
-      ctx.fillText(line.trim(), x, y);
-      line = words[i] + " ";
-      y += lineHeight;
-      lineCount++;
-    } else {
-      line = testLine;
-    }
-  }
-  if (line.trim()) ctx.fillText(line.trim(), x, y);
-  return y + lineHeight;
-}
-
-function roundRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.arcTo(x + w, y, x + w, y + r, r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-  ctx.lineTo(x + r, y + h);
-  ctx.arcTo(x, y + h, x, y + h - r, r);
-  ctx.lineTo(x, y + r);
-  ctx.arcTo(x, y, x + r, y, r);
-  ctx.closePath();
-}
-
-// ─── Draw Devotion Card (unchanged) ──────────────────────────────────────────
-
-type DevotionCardData = {
-  title: string;
-  verseRef: string;
-  verseText: string;
-  plainText: string;
-  date: string;
-};
-
-async function drawDevotionCard(
-  theme: (typeof CARD_THEMES)[0],
-  data: DevotionCardData,
-): Promise<string> {
-  const W = 720,
-    PAD = 56;
-  const mc = document.createElement("canvas");
-  mc.width = W;
-  mc.height = 100;
-  const mctx = mc.getContext("2d")!;
-
-  function measureLines(
-    ctx: CanvasRenderingContext2D,
-    text: string,
-    font: string,
-    maxWidth: number,
-    lineHeight: number,
-  ): number {
-    ctx.font = font;
-    let line = "",
-      totalH = 0;
-    for (const word of text.split(" ")) {
-      const test = line + word + " ";
-      if (ctx.measureText(test).width > maxWidth && line !== "") {
-        totalH += lineHeight;
-        line = word + " ";
-      } else {
-        line = test;
-      }
-    }
-    if (line.trim()) totalH += lineHeight;
-    return totalH;
-  }
-
-  const TITLE_H = data.title
-    ? measureLines(
-        mctx,
-        data.title,
-        "bold 44px Georgia, serif",
-        W - PAD * 2,
-        56,
-      ) + 20
-    : 0;
-  let VERSE_H = 0;
-  if (data.verseText) {
-    const VPAD = 28;
-    const verseClean = data.verseText.replace(/^"|"$/g, "").trim();
-    const vTextH = measureLines(
-      mctx,
-      `"${verseClean}"`,
-      "italic 26px Georgia, serif",
-      W - PAD * 2 - VPAD * 2,
-      36,
-    );
-    VERSE_H = VPAD * 2 + vTextH + (data.verseRef ? 32 : 0) + 8 + 24;
-  }
-  let BODY_H = 0;
-  if (data.plainText) {
-    const paragraphs = data.plainText.split("\n").filter((p) => p.trim());
-    for (const para of paragraphs)
-      BODY_H +=
-        measureLines(mctx, para, "22px Georgia, serif", W - PAD * 2, 34) + 10;
-    BODY_H += 8;
-  }
-
-  const H = 8 + 56 + 44 + TITLE_H + VERSE_H + BODY_H + 48 + 32 + 40;
-  const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext("2d")!;
-
-  ctx.fillStyle = theme.bg;
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = theme.accent;
-  ctx.fillRect(0, 0, W, 8);
-
-  const cx = W / 2;
-  let curY = 64;
-  const dateStr = new Date(data.date || Date.now()).toLocaleDateString(
-    "en-US",
-    { weekday: "long", year: "numeric", month: "long", day: "numeric" },
-  );
-  ctx.fillStyle = theme.accent;
-  ctx.font = "bold 18px system-ui, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText(dateStr.toUpperCase(), cx, curY);
-  curY += 44;
-
-  if (data.title) {
-    ctx.fillStyle = theme.titleColor;
-    ctx.font = "bold 44px Georgia, serif";
-    ctx.textAlign = "center";
-    curY = canvasWrapText(ctx, data.title, cx, curY, W - PAD * 2, 56);
-    curY += 20;
-  }
-
-  if (data.verseText) {
-    const verseClean = data.verseText.replace(/^"|"$/g, "").trim();
-    const VPAD = 28,
-      verseX = PAD + VPAD,
-      verseMaxW = W - PAD * 2 - VPAD * 2;
-    const vTextH = measureLines(
-      mctx,
-      `"${verseClean}"`,
-      "italic 26px Georgia, serif",
-      verseMaxW,
-      36,
-    );
-    const verseBlockH = VPAD * 2 + vTextH + (data.verseRef ? 32 : 0) + 8;
-    roundRect(ctx, PAD, curY, W - PAD * 2, verseBlockH, 16);
-    ctx.fillStyle = theme.decorColor;
-    ctx.fill();
-    roundRect(ctx, PAD, curY, 4, verseBlockH, 2);
-    ctx.fillStyle = theme.accent;
-    ctx.fill();
-    ctx.fillStyle = theme.verseColor;
-    ctx.font = "italic 26px Georgia, serif";
-    ctx.textAlign = "left";
-    let vY = canvasWrapText(
-      ctx,
-      `"${verseClean}"`,
-      verseX,
-      curY + VPAD + 8,
-      verseMaxW,
-      36,
-    );
-    if (data.verseRef) {
-      ctx.fillStyle = theme.accentLight;
-      ctx.font = "bold 20px system-ui, sans-serif";
-      ctx.fillText(`— ${data.verseRef}`, verseX, vY + 4);
-    }
-    curY += verseBlockH + 24;
-  }
-
-  if (data.plainText) {
-    ctx.fillStyle = theme.textColor;
-    ctx.font = "22px Georgia, serif";
-    ctx.textAlign = "left";
-    for (const para of data.plainText.split("\n").filter((p) => p.trim())) {
-      curY = canvasWrapText(ctx, para, PAD, curY, W - PAD * 2, 34);
-      curY += 10;
-    }
-    curY += 8;
-  }
-
-  ctx.strokeStyle = theme.borderColor;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(PAD, curY + 8);
-  ctx.lineTo(W - PAD, curY + 8);
-  ctx.stroke();
-  curY += 32;
-  ctx.fillStyle = theme.accent;
-  ctx.font = "bold 20px system-ui, sans-serif";
-  ctx.textAlign = "left";
-  ctx.fillText("✦ Notely", PAD, curY);
-  ctx.fillStyle = theme.accent + "88";
-  ctx.font = "20px system-ui, sans-serif";
-  ctx.textAlign = "right";
-  ctx.fillText("Daily Devotion", W - PAD, curY);
-
-  return canvas.toDataURL("image/jpeg", 0.96);
-}
-
-// ─── Draw General Note Card (unchanged) ──────────────────────────────────────
-
-type NoteCardData = {
-  title: string;
-  plainText: string;
-  date: string;
-  emotion?: EmotionEntry;
-  tags?: string[];
-  journalName?: string;
-  accentColor: string;
-};
-
-async function drawGeneralNoteCard(
-  theme: (typeof NOTE_THEMES)[0],
-  data: NoteCardData,
-): Promise<string> {
-  const W = 720,
-    PAD = 52;
-  const accent = data.accentColor;
-  const measureCanvas = document.createElement("canvas");
-  measureCanvas.width = W;
-  measureCanvas.height = 100;
-  const mctx = measureCanvas.getContext("2d")!;
-
-  mctx.font = "bold 40px Georgia, serif";
-  const titleWords = (data.title || "Untitled").split(" ");
-  let tLine = "",
-    titleLines = 0;
-  for (const w of titleWords) {
-    const t = tLine + w + " ";
-    if (mctx.measureText(t).width > W - PAD * 2 && tLine !== "") {
-      titleLines++;
-      tLine = w + " ";
-    } else {
-      tLine = t;
-    }
-  }
-  titleLines++;
-
-  mctx.font = "22px Georgia, serif";
-  const bodyWords = (data.plainText || "").split(" ").filter(Boolean);
-  let bLine = "",
-    bodyLines = 0;
-  for (const w of bodyWords) {
-    const t = bLine + w + " ";
-    if (mctx.measureText(t).width > W - PAD * 2 && bLine !== "") {
-      bodyLines++;
-      bLine = w + " ";
-    } else {
-      bLine = t;
-    }
-  }
-  if (bLine.trim()) bodyLines++;
-
-  const H =
-    8 +
-    60 +
-    28 +
-    titleLines * 52 +
-    16 +
-    (bodyLines > 0 ? bodyLines * 34 + 16 : 0) +
-    (data.tags && data.tags.length > 0 ? 48 : 0) +
-    (data.emotion ? 44 : 0) +
-    64 +
-    32;
-  const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext("2d")!;
-
-  ctx.fillStyle = theme.bg;
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = accent;
-  ctx.fillRect(0, 0, W, 8);
-
-  let curY = 8 + 44;
-  const dateStr = new Date(data.date || Date.now()).toLocaleDateString(
-    "en-US",
-    { weekday: "long", year: "numeric", month: "long", day: "numeric" },
-  );
-  ctx.fillStyle = accent;
-  ctx.font = "bold 17px system-ui, sans-serif";
-  ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText(dateStr.toUpperCase(), PAD, curY);
-  curY += 30;
-
-  if (data.title) {
-    ctx.fillStyle = theme.titleColor;
-    ctx.font = "bold 40px Georgia, serif";
-    ctx.textAlign = "left";
-    curY = canvasWrapText(ctx, data.title, PAD, curY, W - PAD * 2, 52);
-    curY += 14;
-  }
-
-  ctx.strokeStyle = theme.borderColor;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(PAD, curY);
-  ctx.lineTo(W - PAD, curY);
-  ctx.stroke();
-  curY += 20;
-
-  if (data.plainText) {
-    ctx.fillStyle = theme.textColor;
-    ctx.font = "22px Georgia, serif";
-    ctx.textAlign = "left";
-    for (const para of data.plainText.split("\n").filter((p) => p.trim())) {
-      curY = canvasWrapText(ctx, para, PAD, curY, W - PAD * 2, 34);
-      curY += 10;
-    }
-    curY += 8;
-  }
-
-  if (data.tags && data.tags.length > 0) {
-    ctx.font = "bold 18px system-ui, sans-serif";
-    let tagX = PAD;
-    for (const tag of data.tags) {
-      const label = `#${tag}`,
-        tw = ctx.measureText(label).width + 28;
-      roundRect(ctx, tagX, curY, tw, 30, 15);
-      ctx.fillStyle = accent + "22";
-      ctx.fill();
-      ctx.fillStyle = accent;
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.fillText(label, tagX + 14, curY + 15);
-      tagX += tw + 10;
-    }
-    ctx.textBaseline = "alphabetic";
-    curY += 46;
-  }
-
-  if (data.emotion) {
-    const moodLabel = `${data.emotion.label}  ·  ${["Slightly", "Moderately", "Strongly"][data.emotion.intensity - 1]}`;
-    ctx.font = "bold 18px system-ui, sans-serif";
-    const mw = ctx.measureText(moodLabel).width + 36;
-    roundRect(ctx, PAD, curY, mw, 32, 16);
-    ctx.fillStyle = data.emotion.color + "22";
-    ctx.fill();
-    ctx.fillStyle = data.emotion.color;
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    ctx.fillText(moodLabel, PAD + 18, curY + 16);
-    ctx.textBaseline = "alphabetic";
-    curY += 48;
-  }
-
-  ctx.strokeStyle = theme.borderColor;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(PAD, curY + 10);
-  ctx.lineTo(W - PAD, curY + 10);
-  ctx.stroke();
-  curY += 32;
-  ctx.fillStyle = accent;
-  ctx.font = "bold 20px system-ui, sans-serif";
-  ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText("✦ Notely", PAD, curY);
-  ctx.fillStyle = accent + "88";
-  ctx.font = "20px system-ui, sans-serif";
-  ctx.textAlign = "right";
-  ctx.fillText(data.journalName || "My Journal", W - PAD, curY);
-
-  return canvas.toDataURL("image/jpeg", 0.96);
-}
-
-// ─── Share helper (unchanged) ─────────────────────────────────────────────────
-
-async function shareOrDownloadDataUrl(dataUrl: string, filename: string) {
-  if (Platform.OS === "web") {
-    const a = document.createElement("a");
-    a.href = dataUrl;
-    a.download = filename;
-    a.click();
-  } else {
-    try {
-      const FileSystem = require("expo-file-system");
-      const base64 = dataUrl.split(",")[1];
-      if (!base64) throw new Error("Invalid data URL");
-      const fileUri = FileSystem.cacheDirectory + filename;
-      await FileSystem.writeAsStringAsync(fileUri, base64, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      const canShare = await Sharing.isAvailableAsync();
-      if (!canShare) throw new Error("Sharing not available");
-      await Sharing.shareAsync(fileUri, {
-        mimeType: "image/jpeg",
-        dialogTitle: "Share Note Card",
-      });
-    } catch (err) {
-      console.log("shareOrDownloadDataUrl error:", err);
-      throw err;
-    }
-  }
-}
-
-// ─── Card Previews (unchanged) ────────────────────────────────────────────────
+// ─── Card Previews ────────────────────────────────────────────────────────────
 
 function DevotionCardPreview({
   title,
@@ -1532,7 +1122,7 @@ const nc = StyleSheet.create({
   footerSub: { fontSize: 10, letterSpacing: 0.2 },
 });
 
-// ─── Share Modals (unchanged) ─────────────────────────────────────────────────
+// ─── Share Modals (updated to use react-native-view-shot) ────────────────────
 
 function ShareDevotionModal({
   visible,
@@ -1556,29 +1146,42 @@ function ShareDevotionModal({
   const [selectedTheme, setSelectedTheme] = useState(0);
   const [isCapturing, setIsCapturing] = useState(false);
   const [status, setStatus] = useState("");
-  const plainText = segmentsToPlain(segments).trim();
   const theme = CARD_THEMES[selectedTheme];
+  // ref for ViewShot capture
+  const cardRef = useRef<ViewShot>(null);
 
   const handleShare = async () => {
     setIsCapturing(true);
     setStatus("Drawing card...");
     try {
-      const dataUrl = await drawDevotionCard(theme, {
-        title,
-        verseRef,
-        verseText,
-        plainText,
-        date,
+      // Capture the rendered card as an image URI
+      const uri = await captureRef(cardRef, {
+        format: "jpg",
+        quality: 0.96,
       });
+
       setStatus("Opening share options...");
-      await shareOrDownloadDataUrl(dataUrl, `devotion-${Date.now()}.jpg`);
-      setStatus(
-        Platform.OS === "web"
-          ? "Downloaded! 🎉 Save and share on Messenger."
-          : "",
-      );
-      if (Platform.OS === "web") setTimeout(() => setStatus(""), 4000);
+
+      if (Platform.OS === "web") {
+        // Web: trigger a download via anchor tag
+        const a = document.createElement("a");
+        a.href = uri;
+        a.download = `devotion-${Date.now()}.jpg`;
+        a.click();
+        setStatus("Downloaded! 🎉 Save and share on Messenger.");
+        setTimeout(() => setStatus(""), 4000);
+      } else {
+        // Mobile: share via native sheet
+        const canShare = await Sharing.isAvailableAsync();
+        if (!canShare) throw new Error("Sharing not available on this device");
+        await Sharing.shareAsync(uri, {
+          mimeType: "image/jpeg",
+          dialogTitle: "Share Devotion Card",
+        });
+        setStatus("");
+      }
     } catch (err) {
+      console.log("ShareDevotionModal error:", err);
       setStatus("Something went wrong. Try again.");
       setTimeout(() => setStatus(""), 3000);
     } finally {
@@ -1609,6 +1212,7 @@ function ShareDevotionModal({
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 32 }}
           >
+            {/* Card preview wrapped in ViewShot for capture */}
             <View style={sm.cardPreviewWrap}>
               <ScrollView
                 horizontal
@@ -1618,14 +1222,19 @@ function ShareDevotionModal({
                   paddingVertical: 16,
                 }}
               >
-                <DevotionCardPreview
-                  title={title}
-                  verseRef={verseRef}
-                  verseText={verseText}
-                  segments={segments}
-                  date={date}
-                  theme={theme}
-                />
+                <ViewShot
+                  ref={cardRef}
+                  options={{ format: "jpg", quality: 0.96 }}
+                >
+                  <DevotionCardPreview
+                    title={title}
+                    verseRef={verseRef}
+                    verseText={verseText}
+                    segments={segments}
+                    date={date}
+                    theme={theme}
+                  />
+                </ViewShot>
               </ScrollView>
               <View style={sm.previewNoteRow}>
                 <IconArrowUp color="#444" />
@@ -1635,6 +1244,7 @@ function ShareDevotionModal({
                 </Text>
               </View>
             </View>
+
             <Text style={sm.sectionLabel}>THEME</Text>
             <View style={sm.themeRow}>
               {CARD_THEMES.map((t, idx) => (
@@ -1669,6 +1279,7 @@ function ShareDevotionModal({
                 </TouchableOpacity>
               ))}
             </View>
+
             {status ? (
               <View style={sm.statusBox}>
                 <Text style={[sm.statusText, { color: journalColor }]}>
@@ -1687,6 +1298,7 @@ function ShareDevotionModal({
                 </View>
               </View>
             )}
+
             <TouchableOpacity
               onPress={handleShare}
               disabled={isCapturing}
@@ -1744,26 +1356,39 @@ function ShareNoteModal({
   const [isCapturing, setIsCapturing] = useState(false);
   const [status, setStatus] = useState("");
   const theme = { ...NOTE_THEMES[selectedTheme], accent: journalColor };
+  // ref for ViewShot capture
+  const cardRef = useRef<ViewShot>(null);
 
   const handleShare = async () => {
     setIsCapturing(true);
     setStatus("Drawing card...");
     try {
-      const plainText = segmentsToPlain(segments).trim();
-      const dataUrl = await drawGeneralNoteCard(theme, {
-        title,
-        plainText,
-        date,
-        emotion,
-        tags,
-        journalName,
-        accentColor: journalColor,
+      // Capture the rendered card as an image URI
+      const uri = await captureRef(cardRef, {
+        format: "jpg",
+        quality: 0.96,
       });
+
       setStatus("Opening share options...");
-      await shareOrDownloadDataUrl(dataUrl, `note-${Date.now()}.jpg`);
-      setStatus(Platform.OS === "web" ? "Downloaded! 🎉" : "");
-      if (Platform.OS === "web") setTimeout(() => setStatus(""), 4000);
+
+      if (Platform.OS === "web") {
+        const a = document.createElement("a");
+        a.href = uri;
+        a.download = `note-${Date.now()}.jpg`;
+        a.click();
+        setStatus("Downloaded! 🎉");
+        setTimeout(() => setStatus(""), 4000);
+      } else {
+        const canShare = await Sharing.isAvailableAsync();
+        if (!canShare) throw new Error("Sharing not available on this device");
+        await Sharing.shareAsync(uri, {
+          mimeType: "image/jpeg",
+          dialogTitle: "Share Note Card",
+        });
+        setStatus("");
+      }
     } catch (err) {
+      console.log("ShareNoteModal error:", err);
       setStatus("Something went wrong. Try again.");
       setTimeout(() => setStatus(""), 3000);
     } finally {
@@ -1798,6 +1423,7 @@ function ShareNoteModal({
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 32 }}
           >
+            {/* Card preview wrapped in ViewShot for capture */}
             <View style={sm.cardPreviewWrap}>
               <ScrollView
                 horizontal
@@ -1807,16 +1433,21 @@ function ShareNoteModal({
                   paddingVertical: 16,
                 }}
               >
-                <NoteCardPreview
-                  title={title}
-                  segments={segments}
-                  date={date}
-                  emotion={emotion}
-                  tags={tags}
-                  journalName={journalName}
-                  accentColor={journalColor}
-                  theme={theme}
-                />
+                <ViewShot
+                  ref={cardRef}
+                  options={{ format: "jpg", quality: 0.96 }}
+                >
+                  <NoteCardPreview
+                    title={title}
+                    segments={segments}
+                    date={date}
+                    emotion={emotion}
+                    tags={tags}
+                    journalName={journalName}
+                    accentColor={journalColor}
+                    theme={theme}
+                  />
+                </ViewShot>
               </ScrollView>
               <View style={sm.previewNoteRow}>
                 <IconArrowUp color="#444" />
@@ -1826,6 +1457,7 @@ function ShareNoteModal({
                 </Text>
               </View>
             </View>
+
             <Text style={sm.sectionLabel}>BACKGROUND</Text>
             <View style={sm.themeRow}>
               {NOTE_THEMES.map((t, idx) => (
@@ -1860,6 +1492,7 @@ function ShareNoteModal({
                 </TouchableOpacity>
               ))}
             </View>
+
             {status ? (
               <View style={sm.statusBox}>
                 <Text style={[sm.statusText, { color: journalColor }]}>
@@ -1878,6 +1511,7 @@ function ShareNoteModal({
                 </View>
               </View>
             )}
+
             <TouchableOpacity
               onPress={handleShare}
               disabled={isCapturing}
@@ -2026,7 +1660,6 @@ const sm = StyleSheet.create({
 });
 
 // ─── Segment Row ──────────────────────────────────────────────────────────────
-// Each segment is its own TextInput with its own formatting styles applied.
 
 function SegmentRow({
   seg,
@@ -2054,7 +1687,7 @@ function SegmentRow({
       style={
         seg.highlight
           ? [sr.highlightWrap, { backgroundColor: seg.highlight }]
-          : null
+          : sr.rowWrap
       }
     >
       <TextInput
@@ -2064,22 +1697,30 @@ function SegmentRow({
         onChangeText={onChange}
         onFocus={onFocus}
         onKeyPress={onKeyPress}
-        onSubmitEditing={onSubmitEditing}
-        multiline={false}
+        multiline={true}
         blurOnSubmit={false}
+        scrollEnabled={false}
         selectionColor={journalColor}
         placeholder={isActive && seg.text === "" ? "Write here..." : ""}
         placeholderTextColor={journalColor + "30"}
         autoCorrect
         autoCapitalize="sentences"
-        returnKeyType="next"
       />
     </View>
   );
 }
 
 const sr = StyleSheet.create({
-  highlightWrap: { borderRadius: 4, marginHorizontal: 18, marginVertical: 1 },
+  rowWrap: {
+    flex: 1,
+    maxWidth: "100%",
+  },
+  highlightWrap: {
+    borderRadius: 4,
+    marginHorizontal: 4,
+    marginVertical: 1,
+    // highlight bg is set inline — input inside has transparent bg
+  },
   input: {
     paddingHorizontal: 18,
     paddingVertical: 3,
@@ -2103,14 +1744,10 @@ export default function NoteForm() {
   const initialTitle = asString(params.initialTitle, "");
   const paramVerseRef = asString(params.verseRef, "");
   const paramVerseText = asString(params.verseText, "");
-  // newKey is passed by NoteList for new notes — unique per session, forces fresh state
   const newKey = asString(params.newKey, "");
 
   const storageKey = STORAGE_KEYS.notes(journalId);
 
-  // ── Detect new note vs edit ─────────────────────────────────────────────────
-  // If no noteId param, this is always a fresh new note — ignore any stale params
-  // isNewNote: true when newKey param present (new note from NoteList) OR no id at all
   const isNewNote = !!newKey || !noteId;
 
   const [title, setTitle] = useState(isNewNote ? "" : initialTitle);
@@ -2119,9 +1756,12 @@ export default function NoteForm() {
   const verseRefRef = useRef(isNewNote ? "" : paramVerseRef);
   const verseTextRef = useRef(isNewNote ? "" : paramVerseText);
 
-  // ── Segments state ──────────────────────────────────────────────────────────
   const [segments, setSegments] = useState<Segment[]>([defaultSegment()]);
   const segsRef = useRef<Segment[]>([defaultSegment()]);
+
+  const [history, setHistory] = useState<Segment[][]>([]);
+  const [future, setFuture] = useState<Segment[][]>([]);
+  const [kbHeight, setKbHeight] = useState(0);
 
   const [activeIdx, setActiveIdx] = useState(0);
   const [fmt, setFmt] = useState<Partial<Segment>>({
@@ -2137,14 +1777,15 @@ export default function NoteForm() {
   });
 
   const [picker, setPicker] = useState<
-    "fontSize" | "color" | "highlight" | "heading" | "mood" | null
+    "fontSize" | "color" | "highlight" | "heading" | "mood" | "tags" | null
   >(null);
-  const [kbHeight, setKbHeight] = useState(0);
+
   const [isSavingUI, setIsSavingUI] = useState(false);
   const [emotion, setEmotion] = useState<EmotionEntry | undefined>(undefined);
   const [activities, setActivities] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
+  const [globalTags, setGlobalTags] = useState<string[]>([]);
   const [selectedValence, setSelectedValence] = useState<number | null>(null);
 
   const [showDevotionShareModal, setShowDevotionShareModal] = useState(false);
@@ -2152,7 +1793,6 @@ export default function NoteForm() {
   const [noteDate, setNoteDate] = useState(new Date().toISOString());
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // For new notes, noteIdRef must start as null so saveNow creates a new record
   const noteIdRef = useRef<string | null>(isNewNote ? null : noteId || null);
   const hasChanges = useRef(false);
   const isSaving = useRef(false);
@@ -2174,9 +1814,13 @@ export default function NoteForm() {
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvt =
       Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const s1 = Keyboard.addListener(showEvt, (e: KeyboardEvent) =>
-      setKbHeight(e.endCoordinates.height),
-    );
+    const s1 = Keyboard.addListener(showEvt, (e: KeyboardEvent) => {
+      // e.endCoordinates.screenY is the top of the keyboard from screen top
+      // This is the most reliable way to get true keyboard height
+      const screenHeight = Dimensions.get("window").height;
+      const keyboardHeight = screenHeight - e.endCoordinates.screenY;
+      setKbHeight(keyboardHeight);
+    });
     const s2 = Keyboard.addListener(hideEvt, () => setKbHeight(0));
     return () => {
       s1.remove();
@@ -2184,21 +1828,16 @@ export default function NoteForm() {
     };
   }, []);
 
-  // ── Focus effect: reset state every time screen is focused ────────────────
-  // Expo Router reuses screen instances, so useState initial values only run once.
-  // useFocusEffect runs on every navigation to this screen — guarantees fresh state.
+  // ── Focus effect ────────────────────────────────────────────────────────────
   useFocusEffect(
     useCallback(() => {
-      // Cancel any pending autosave from previous session
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
-      // Get fresh params each focus
       const currentNoteId = asString(params.id as any);
       const currentNewKey = asString(params.newKey as any);
       const freshIsNew = !!currentNewKey || !currentNoteId;
 
       if (freshIsNew) {
-        // Reset everything to blank
         const blankSeg = defaultSegment();
         segsRef.current = [blankSeg];
         latestRef.current = { title: "", segments: [blankSeg] };
@@ -2210,6 +1849,8 @@ export default function NoteForm() {
         isSaving.current = false;
 
         setTitle("");
+        setHistory([]);
+        setFuture([]);
         setVerseRef(asString(params.verseRef as any, ""));
         setVerseText(asString(params.verseText as any, ""));
         setSegments([blankSeg]);
@@ -2220,6 +1861,7 @@ export default function NoteForm() {
         setTagInput("");
         setSelectedValence(null);
         setNoteDate(new Date().toISOString());
+        loadGlobalTags();
         setFmt({
           bold: false,
           italic: false,
@@ -2232,10 +1874,10 @@ export default function NoteForm() {
           align: "left",
         });
       } else if (currentNoteId) {
-        // Editing existing note — load it fresh
         noteIdRef.current = currentNoteId;
         loadNote(currentNoteId);
       }
+      loadGlobalTags();
 
       return () => {
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -2259,6 +1901,24 @@ export default function NoteForm() {
       align: seg.align ?? "left",
     });
   }, [activeIdx, segments]);
+
+  // ── Load global tags ────────────────────────────────────────────────────────
+  const loadGlobalTags = async () => {
+    try {
+      const stored = await Storage.getItem(STORAGE_KEYS.tags);
+      setGlobalTags(stored ? JSON.parse(stored) : []);
+    } catch (err) {
+      console.log("loadGlobalTags error:", err);
+    }
+  };
+
+  const saveGlobalTags = async (next: string[]) => {
+    try {
+      await Storage.setItem(STORAGE_KEYS.tags, JSON.stringify(next));
+    } catch (err) {
+      console.log("saveGlobalTags error:", err);
+    }
+  };
 
   // ── Load note ───────────────────────────────────────────────────────────────
   const loadNote = async (idToLoad: string) => {
@@ -2387,11 +2047,18 @@ export default function NoteForm() {
       await saveNow();
       setIsSavingUI(false);
     }
-    router.back();
+    router.replace({
+      pathname: "/note-list",
+      params: { journalId, journalColor, journalName },
+    });
   };
 
   // ── Segment operations ──────────────────────────────────────────────────────
-  const pushSegments = (next: Segment[]) => {
+  const pushSegments = (next: Segment[], skipHistory = false) => {
+    if (!skipHistory) {
+      setHistory((h) => [...h.slice(-30), segsRef.current]);
+      setFuture([]);
+    }
     segsRef.current = next;
     latestRef.current.segments = next;
     setSegments([...next]);
@@ -2405,10 +2072,7 @@ export default function NoteForm() {
     pushSegments(next);
   };
 
-  // When user types in a segment row
   const handleSegChange = (idx: number, newText: string) => {
-    // No newlines possible in single-line TextInput with returnKeyType="next"
-    // But handle paste that might include newlines
     if (!newText.includes("\n")) {
       patchSeg(idx, { text: newText });
       return;
@@ -2420,16 +2084,14 @@ export default function NoteForm() {
     const newSegs: Segment[] = [
       ...before,
       { ...cur, text: parts[0] },
-      ...parts
-        .slice(1)
-        .map((p) =>
-          defaultSegment({
-            text: p,
-            fontSize: cur.fontSize,
-            color: cur.color,
-            align: cur.align,
-          }),
-        ),
+      ...parts.slice(1).map((p) =>
+        defaultSegment({
+          text: p,
+          fontSize: cur.fontSize,
+          color: cur.color,
+          align: cur.align,
+        }),
+      ),
       ...after,
     ];
     pushSegments(newSegs);
@@ -2441,7 +2103,28 @@ export default function NoteForm() {
     }, 30);
   };
 
-  // Enter key → new segment
+  const handleUndo = () => {
+    if (history.length === 0) return;
+    const prev = history[history.length - 1];
+    setFuture((f) => [segsRef.current, ...f.slice(0, 30)]);
+    setHistory((h) => h.slice(0, -1));
+    segsRef.current = prev;
+    latestRef.current.segments = prev;
+    setSegments([...prev]);
+    triggerSave();
+  };
+
+  const handleRedo = () => {
+    if (future.length === 0) return;
+    const next = future[0];
+    setHistory((h) => [...h.slice(-30), segsRef.current]);
+    setFuture((f) => f.slice(1));
+    segsRef.current = next;
+    latestRef.current.segments = next;
+    setSegments([...next]);
+    triggerSave();
+  };
+
   const handleSegSubmit = (idx: number) => {
     const cur = segsRef.current[idx];
     const before = segsRef.current.slice(0, idx + 1);
@@ -2459,7 +2142,6 @@ export default function NoteForm() {
     }, 30);
   };
 
-  // Backspace on empty segment → merge with previous
   const handleSegKeyPress = (idx: number, e: any) => {
     if (e.nativeEvent.key !== "Backspace") return;
     const cur = segsRef.current[idx];
@@ -2483,11 +2165,6 @@ export default function NoteForm() {
     key: "bold" | "italic" | "underline" | "strikethrough",
   ) => {
     applyFmt({ [key]: !fmt[key] });
-    // Re-focus the active input after toggling
-    setTimeout(() => {
-      const seg = segsRef.current[activeIdx];
-      if (seg) inputRefs.current[seg.id]?.focus();
-    }, 50);
   };
 
   // ── Emotion / Activities / Tags ─────────────────────────────────────────────
@@ -2518,13 +2195,38 @@ export default function NoteForm() {
   };
 
   const addTag = (raw: string) => {
-    const tag = raw.trim().replace(/^#/, "");
+    const tag = raw.trim().replace(/^#/, "").toLowerCase();
     if (!tag || tagsRef.current.includes(tag)) return;
     const next = [...tagsRef.current, tag];
     tagsRef.current = next;
     setTags(next);
     setTagInput("");
     triggerSave();
+    // Also add to global tags if not yet there
+    if (!globalTags.includes(tag)) {
+      const nextGlobal = [...globalTags, tag].sort();
+      setGlobalTags(nextGlobal);
+      saveGlobalTags(nextGlobal);
+    }
+  };
+
+  const deleteGlobalTag = (tag: string) => {
+    const nextGlobal = globalTags.filter((t) => t !== tag);
+    setGlobalTags(nextGlobal);
+    saveGlobalTags(nextGlobal);
+    // Also remove from current note if applied
+    removeTag(tag);
+  };
+
+  const toggleTag = (tag: string) => {
+    if (tagsRef.current.includes(tag)) {
+      removeTag(tag);
+    } else {
+      const next = [...tagsRef.current, tag];
+      tagsRef.current = next;
+      setTags(next);
+      triggerSave();
+    }
   };
 
   const removeTag = (tag: string) => {
@@ -2539,7 +2241,14 @@ export default function NoteForm() {
       ? setShowDevotionShareModal(true)
       : setShowNoteShareModal(true);
 
+  // toolbarBottom: where the bottom of the floating toolbar anchors
+  // keyboard up  → sits flush on top of keyboard
+  // keyboard down → sits just above the device safe area
   const toolbarBottom = kbHeight > 0 ? kbHeight : insets.bottom;
+  // Total height occupied by the bottom bar (undoRow + toolbar)
+  const TOOLBAR_H = 48;
+  const UNDO_H = 36;
+  const bottomBarH = TOOLBAR_H + UNDO_H;
   const wordCount = segments
     .map((s) => s.text)
     .join(" ")
@@ -2610,12 +2319,12 @@ export default function NoteForm() {
         </View>
       ) : null}
 
-      {/* ── Rich Text Editor (multi-segment) ── */}
+      {/* Rich Text Editor */}
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={[
           s.editorContent,
-          { paddingBottom: toolbarBottom + 60 },
+          { paddingBottom: toolbarBottom + bottomBarH + 8 },
         ]}
         keyboardShouldPersistTaps="handled"
       >
@@ -2634,7 +2343,6 @@ export default function NoteForm() {
             }}
           />
         ))}
-        {/* Tap-to-add area below last segment */}
         <TouchableOpacity
           style={s.editorTapArea}
           activeOpacity={1}
@@ -2656,19 +2364,73 @@ export default function NoteForm() {
         />
       </ScrollView>
 
-      {/* Word count */}
-      {wordCount > 0 && (
-        <Text style={[s.wordCount, { bottom: toolbarBottom + 52 }]}>
-          {wordCount} words
-        </Text>
-      )}
+      {/* Undo/Redo + word count bar */}
+      <View
+        style={[s.undoBar, { bottom: toolbarBottom + TOOLBAR_H }]}
+        onStartShouldSetResponder={() => false}
+        onStartShouldSetResponderCapture={() => false}
+      >
+        <TouchableOpacity
+          onPress={handleUndo}
+          disabled={history.length === 0}
+          style={s.undoBtn}
+        >
+          <FontAwesome6
+            name="rotate-left"
+            size={13}
+            color={history.length === 0 ? "#2a2a2a" : "#555"}
+          />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={handleRedo}
+          disabled={future.length === 0}
+          style={s.undoBtn}
+        >
+          <FontAwesome6
+            name="rotate-right"
+            size={13}
+            color={future.length === 0 ? "#2a2a2a" : "#555"}
+          />
+        </TouchableOpacity>
+        {tags.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ flex: 1 }}
+            contentContainerStyle={{
+              gap: 6,
+              alignItems: "center",
+              paddingHorizontal: 4,
+            }}
+          >
+            {tags.map((tag) => (
+              <TouchableOpacity
+                key={tag}
+                onPress={() => removeTag(tag)}
+                style={s.tagPill}
+              >
+                <Text style={s.tagPillText}>#{tag} </Text>
+                <IconX color="#888" />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+        {wordCount > 0 && tags.length === 0 && (
+          <Text style={s.wordCount}>{wordCount} words</Text>
+        )}
+      </View>
 
       {/* Formatting toolbar */}
-      <View style={[s.toolbarWrap, { bottom: toolbarBottom }]}>
+      <View
+        style={[s.toolbarWrap, { bottom: toolbarBottom }]}
+        onStartShouldSetResponder={() => false}
+        onStartShouldSetResponderCapture={() => false}
+      >
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.toolbarContent}
+          keyboardShouldPersistTaps="always"
         >
           <ToolBtn
             icon="bold"
@@ -2739,6 +2501,12 @@ export default function NoteForm() {
             onPress={() => setPicker("mood")}
             hasEmotion={!!emotion}
             emotionColor={emotion?.color}
+          />
+          <ToolBtn
+            icon="tags"
+            active={tags.length > 0}
+            onPress={() => setPicker("tags")}
+            activeColor={journalColor}
           />
         </ScrollView>
       </View>
@@ -2854,28 +2622,6 @@ export default function NoteForm() {
           />
         ))}
       </BottomSheet>
-
-      {/* Tags row */}
-      {tags.length > 0 && (
-        <View style={[s.tagsRow, { bottom: toolbarBottom + 50 }]}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 6, alignItems: "center" }}
-          >
-            {tags.map((tag) => (
-              <TouchableOpacity
-                key={tag}
-                onPress={() => removeTag(tag)}
-                style={s.tagPill}
-              >
-                <Text style={s.tagPillText}>#{tag} </Text>
-                <IconX color="#888" />
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
 
       {/* Mood Modal */}
       <Modal
@@ -3031,10 +2777,57 @@ export default function NoteForm() {
               </View>
 
               <Text style={[s.moodSectionLabel, { marginTop: 20 }]}>TAGS</Text>
+
+              {/* Global tags — tap to toggle on/off for this note */}
+              {globalTags.length > 0 && (
+                <View style={s.tagPillsWrap}>
+                  {globalTags.map((tag) => {
+                    const isActive = tags.includes(tag);
+                    return (
+                      <View key={tag} style={s.tagPickerRow}>
+                        <TouchableOpacity
+                          onPress={() => toggleTag(tag)}
+                          style={[
+                            s.tagPickerPill,
+                            isActive
+                              ? {
+                                  backgroundColor: journalColor + "33",
+                                  borderColor: journalColor,
+                                }
+                              : {
+                                  backgroundColor: "#1a1a1a",
+                                  borderColor: "#2a2a2a",
+                                },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              s.tagPickerText,
+                              { color: isActive ? journalColor : "#555" },
+                            ]}
+                          >
+                            #{tag}
+                          </Text>
+                          {isActive && <IconCheck color={journalColor} />}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => deleteGlobalTag(tag)}
+                          style={s.tagDeleteBtn}
+                          hitSlop={8}
+                        >
+                          <IconX color="#333" />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Add new global tag */}
               <View style={s.tagInputRow}>
                 <TextInput
                   style={s.tagTextInput}
-                  placeholder="Add tag..."
+                  placeholder="Create new tag..."
                   placeholderTextColor="#444"
                   value={tagInput}
                   onChangeText={setTagInput}
@@ -3050,20 +2843,124 @@ export default function NoteForm() {
                   <Text style={{ color: "#fff", fontWeight: "600" }}>Add</Text>
                 </TouchableOpacity>
               </View>
-              {tags.length > 0 && (
-                <View style={s.tagPillsWrap}>
-                  {tags.map((tag) => (
-                    <TouchableOpacity
-                      key={tag}
-                      onPress={() => removeTag(tag)}
-                      style={s.tagPill}
-                    >
-                      <Text style={s.tagPillText}>#{tag} </Text>
-                      <IconX color="#888" />
-                    </TouchableOpacity>
-                  ))}
-                </View>
+
+              {globalTags.length === 0 && (
+                <Text style={s.tagEmptyHint}>
+                  Create tags above — they'll be reusable across all your notes.
+                </Text>
               )}
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Tags Picker Modal */}
+      <Modal
+        transparent
+        visible={picker === "tags"}
+        animationType="slide"
+        onRequestClose={() => setPicker(null)}
+      >
+        <TouchableOpacity
+          style={s.overlay}
+          activeOpacity={1}
+          onPress={() => setPicker(null)}
+        >
+          <TouchableOpacity activeOpacity={1} style={s.sheet}>
+            <View style={s.sheetHandle} />
+            <View style={s.sheetHeader}>
+              <Text style={s.sheetTitle}>Tags</Text>
+              <TouchableOpacity onPress={() => setPicker(null)}>
+                <IconX color="#555" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={{ maxHeight: 420 }}
+              contentContainerStyle={{ paddingBottom: 24 }}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Tag picker — tap to toggle */}
+              {globalTags.length > 0 ? (
+                <View style={s.tagPickerGrid}>
+                  {globalTags.map((tag) => {
+                    const isActive = tags.includes(tag);
+                    return (
+                      <View key={tag} style={s.tagPickerRow}>
+                        <TouchableOpacity
+                          onPress={() => toggleTag(tag)}
+                          style={[
+                            s.tagPickerPill,
+                            isActive
+                              ? {
+                                  backgroundColor: journalColor + "33",
+                                  borderColor: journalColor,
+                                }
+                              : {
+                                  backgroundColor: "#1a1a1a",
+                                  borderColor: "#2a2a2a",
+                                },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              s.tagPickerText,
+                              { color: isActive ? journalColor : "#666" },
+                            ]}
+                          >
+                            #{tag}
+                          </Text>
+                          {isActive && <IconCheck color={journalColor} />}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => deleteGlobalTag(tag)}
+                          style={s.tagDeleteBtn}
+                          hitSlop={8}
+                        >
+                          <IconX color="#2a2a2a" />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : (
+                <Text style={[s.tagEmptyHint, { marginTop: 16 }]}>
+                  Wala pang tags. Gumawa ng bago sa ibaba.
+                </Text>
+              )}
+
+              {/* Divider */}
+              <View
+                style={{
+                  height: 1,
+                  backgroundColor: "#1e1e1e",
+                  marginHorizontal: 18,
+                  marginTop: 16,
+                  marginBottom: 16,
+                }}
+              />
+
+              {/* Create new tag */}
+              <Text style={s.moodSectionLabel}>CREATE NEW TAG</Text>
+              <View style={s.tagInputRow}>
+                <TextInput
+                  style={s.tagTextInput}
+                  placeholder="Tag name..."
+                  placeholderTextColor="#444"
+                  value={tagInput}
+                  onChangeText={setTagInput}
+                  onSubmitEditing={() => addTag(tagInput)}
+                  returnKeyType="done"
+                  selectionColor={journalColor}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity
+                  onPress={() => addTag(tagInput)}
+                  style={[s.tagAddBtn, { backgroundColor: journalColor }]}
+                >
+                  <Text style={{ color: "#fff", fontWeight: "600" }}>Add</Text>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -3221,14 +3118,30 @@ const s = StyleSheet.create({
     fontStyle: "italic",
     lineHeight: 22,
   },
-  editorContent: { paddingTop: 10, paddingBottom: 20 },
-  editorTapArea: { minHeight: 120 },
+  editorContent: { paddingTop: 10 },
+  editorTapArea: { minHeight: 200 },
   wordCount: {
     color: "#2e2e2e",
     fontSize: 11,
-    textAlign: "right",
+    paddingHorizontal: 4,
+  },
+  undoBar: {
     position: "absolute",
-    right: 18,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    height: 36,
+    gap: 2,
+    backgroundColor: "#161616",
+    borderTopWidth: 1,
+    borderTopColor: "#1e1e1e",
+  },
+  undoBtn: {
+    padding: 6,
+    borderRadius: 6,
   },
   toolbarWrap: {
     position: "absolute",
@@ -3238,6 +3151,9 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#222",
     zIndex: 100,
+    elevation: 10,
+    height: 48,
+    justifyContent: "center",
   },
   toolbarContent: {
     paddingHorizontal: 8,
@@ -3382,11 +3298,38 @@ const s = StyleSheet.create({
   },
   tagAddBtn: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },
   tagPillsWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+    marginHorizontal: 18,
+    marginTop: 6,
+    gap: 6,
+  },
+  tagPickerGrid: {
     marginHorizontal: 18,
     marginTop: 10,
+  },
+  tagPickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
+    marginBottom: 8,
+  },
+  tagPickerPill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  tagPickerText: { fontSize: 13, fontWeight: "600" },
+  tagDeleteBtn: { padding: 4 },
+  tagEmptyHint: {
+    color: "#333",
+    fontSize: 12,
+    marginHorizontal: 18,
+    marginTop: 8,
+    lineHeight: 18,
   },
   tagPill: {
     backgroundColor: "#1e1e1e",
@@ -3398,11 +3341,10 @@ const s = StyleSheet.create({
   },
   tagPillText: { color: "#888", fontSize: 12 },
   tagsRow: {
-    position: "absolute",
-    left: 0,
-    right: 0,
+    flexDirection: "row",
+    flexWrap: "wrap",
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: "#111",
+    gap: 6,
   },
 });

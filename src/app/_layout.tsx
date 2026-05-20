@@ -44,7 +44,10 @@ export default function RootLayout() {
 
       {/* Hidden sa footer */}
       <Tabs.Screen name="explore" options={{ href: null }} />
-      <Tabs.Screen name="note-form" options={{ href: null }} />
+      <Tabs.Screen
+        name="note-form"
+        options={{ href: null, tabBarStyle: { display: "none" } }}
+      />
       <Tabs.Screen name="note-list" options={{ href: null }} />
       <Tabs.Screen name="prayer-list" options={{ href: null }} />
       <Tabs.Screen name="bible-reader" options={{ href: null }} />
