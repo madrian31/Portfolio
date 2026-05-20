@@ -2925,7 +2925,7 @@ export default function NoteForm() {
                 </View>
               ) : (
                 <Text style={[s.tagEmptyHint, { marginTop: 16 }]}>
-                  Wala pang tags. Gumawa ng bago sa ibaba.
+                  No tags yet. Create a new one below.
                 </Text>
               )}
 
