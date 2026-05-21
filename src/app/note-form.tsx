@@ -674,7 +674,7 @@ const CARD_THEMES = [
   {
     id: "midnight",
     label: "Midnight",
-    emoji: "moon",
+    emoji: "moon", // ✅ valid free icon
     bg: "#0d0d1a",
     accent: "#7c5fc4",
     accentLight: "#c084fc",
@@ -687,7 +687,7 @@ const CARD_THEMES = [
   {
     id: "dawn",
     label: "Dawn",
-    emoji: "sun-horizon",
+    emoji: "sun", // ✅ fixed: was "sun-horizon" (pro-only, renders "?" on mobile)
     bg: "#1a0e06",
     accent: "#c2752a",
     accentLight: "#f59e0b",
@@ -700,7 +700,7 @@ const CARD_THEMES = [
   {
     id: "forest",
     label: "Forest",
-    emoji: "seedling",
+    emoji: "seedling", // ✅ valid free icon
     bg: "#071410",
     accent: "#2d7a5a",
     accentLight: "#4ade80",
@@ -713,7 +713,7 @@ const CARD_THEMES = [
   {
     id: "ocean",
     label: "Ocean",
-    emoji: "water",
+    emoji: "water", // ✅ valid free icon
     bg: "#060e1a",
     accent: "#1d5fa8",
     accentLight: "#60a5fa",
@@ -730,7 +730,6 @@ const NOTE_THEMES = [
     id: "dark",
     label: "Dark",
     emoji: "circle-half-stroke",
-    // Pure black — classic dark journal
     bg: "#0a0a0a",
     accent: "",
     titleColor: "#f0f0f0",
@@ -744,7 +743,6 @@ const NOTE_THEMES = [
     id: "slate",
     label: "Slate",
     emoji: "cloud",
-    // Deep navy/slate — cool blue-grey tone
     bg: "#0c0f1a",
     accent: "",
     titleColor: "#dde3f5",
@@ -758,7 +756,6 @@ const NOTE_THEMES = [
     id: "warm",
     label: "Warm",
     emoji: "fire-flame-curved",
-    // Deep warm brown — amber/orange tone
     bg: "#130d06",
     accent: "",
     titleColor: "#f7e8cc",
@@ -772,7 +769,6 @@ const NOTE_THEMES = [
     id: "cool",
     label: "Cool",
     emoji: "snowflake",
-    // Deep midnight blue — icy tone
     bg: "#060d18",
     accent: "",
     titleColor: "#d8eeff",
@@ -925,7 +921,7 @@ function DevotionCardPreview({
         style={[dc.footerDivider, { backgroundColor: theme.borderColor }]}
       />
       <View style={dc.footer}>
-        <Text style={[dc.footerBrand, { color: theme.accent }]}>✦ Notely</Text>
+        <Text style={[dc.footerBrand, { color: theme.accent }]}>✦ Astrea</Text>
         <Text style={[dc.footerSub, { color: theme.accent + "88" }]}>
           Daily Devotion
         </Text>
@@ -960,7 +956,6 @@ function NoteCardPreview({
     month: "long",
     day: "numeric",
   });
-  // Use the theme's own previewAccent for tinted elements inside the card
   const themeAccent = (theme as any).previewAccent ?? accentColor;
   return (
     <View
@@ -969,7 +964,6 @@ function NoteCardPreview({
         { backgroundColor: theme.bg, borderColor: theme.borderColor },
       ]}
     >
-      {/* Top bar uses theme's own accent so each card looks different */}
       <View style={[nc.topBar, { backgroundColor: themeAccent }]} />
       <View style={nc.header}>
         <Text style={[nc.dateText, { color: themeAccent }]}>
@@ -1017,7 +1011,7 @@ function NoteCardPreview({
         style={[nc.footerDivider, { backgroundColor: theme.borderColor }]}
       />
       <View style={nc.footer}>
-        <Text style={[nc.footerBrand, { color: themeAccent }]}>✦ Notely</Text>
+        <Text style={[nc.footerBrand, { color: themeAccent }]}>✦ Astrea</Text>
         <Text style={[nc.footerSub, { color: themeAccent + "88" }]}>
           {journalName || "My Journal"}
         </Text>
@@ -1239,10 +1233,6 @@ function ShareDevotionModal({
               </ScrollView>
               <View style={sm.previewNoteRow}>
                 <IconArrowUp color="#444" />
-                <Text style={sm.previewNote}>
-                  {" "}
-                  Preview — buong content kasama sa actual image
-                </Text>
               </View>
             </View>
             <Text style={sm.sectionLabel}>THEME</Text>
@@ -1262,14 +1252,12 @@ function ShareDevotionModal({
                       isActive && { borderWidth: 2 },
                     ]}
                   >
-                    {/* Icon — uses theme's own accentLight */}
                     <FontAwesome6
                       name={t.emoji}
                       size={14}
                       color={t.accentLight}
                       style={{ opacity: isActive ? 1 : 0.7, marginTop: 2 }}
                     />
-                    {/* Mini card preview */}
                     <View
                       style={{
                         width: "100%",
@@ -1279,7 +1267,6 @@ function ShareDevotionModal({
                         gap: 4,
                       }}
                     >
-                      {/* Top accent bar in theme's own color */}
                       <View
                         style={{
                           height: 2,
@@ -1289,7 +1276,6 @@ function ShareDevotionModal({
                           opacity: isActive ? 1 : 0.6,
                         }}
                       />
-                      {/* Title line */}
                       <View
                         style={{
                           height: 4,
@@ -1299,7 +1285,6 @@ function ShareDevotionModal({
                           opacity: 0.85,
                         }}
                       />
-                      {/* Verse color line — this is the unique differentiator */}
                       <View
                         style={{
                           height: 3,
@@ -1309,7 +1294,6 @@ function ShareDevotionModal({
                           opacity: 0.6,
                         }}
                       />
-                      {/* Body text line */}
                       <View
                         style={{
                           height: 3,
@@ -1523,14 +1507,12 @@ function ShareNoteModal({
                       isActive && { borderWidth: 2 },
                     ]}
                   >
-                    {/* Icon */}
                     <FontAwesome6
                       name={t.emoji}
                       size={14}
                       color={isActive ? journalColor : (t as any).previewAccent}
                       style={{ opacity: isActive ? 1 : 0.7, marginTop: 2 }}
                     />
-                    {/* Mini card preview */}
                     <View
                       style={{
                         width: "100%",
@@ -1540,7 +1522,6 @@ function ShareNoteModal({
                         gap: 4,
                       }}
                     >
-                      {/* Accent bar — uses theme's own previewAccent */}
                       <View
                         style={{
                           height: 2,
@@ -1550,7 +1531,6 @@ function ShareNoteModal({
                           opacity: isActive ? 1 : 0.6,
                         }}
                       />
-                      {/* Title line — bright */}
                       <View
                         style={{
                           height: 4,
@@ -1560,7 +1540,6 @@ function ShareNoteModal({
                           opacity: 0.85,
                         }}
                       />
-                      {/* Body lines — theme accent tinted */}
                       <View
                         style={{
                           height: 3,
@@ -1775,16 +1754,6 @@ const sm = StyleSheet.create({
 });
 
 // ─── NEW: Single TextInput Editor ─────────────────────────────────────────────
-//
-// Pinalitan ang multi-segment approach ng single TextInput para maayos ang
-// text selection across "paragraphs". Ang formatting ay naka-store per-paragraph
-// (split by \n) pero ang input mismo ay iisang TextInput lang.
-//
-// Paano gumagana:
-//  - Ang `segments` ay ginagamit pa rin para sa storage/card preview
-//  - Kapag nag-type ang user, ini-sync ang plaintext sa segments
-//  - Ang active paragraph ay nata-track via cursor position (onSelectionChange)
-//  - Formatting buttons ay nag-a-apply sa current paragraph ng cursor
 
 function getRichText(segments: Segment[]): string {
   return segments.map((s) => s.text).join("\n");
@@ -1797,7 +1766,6 @@ function syncTextToSegments(
 ): Segment[] {
   const lines = newText.split("\n");
   return lines.map((line, i) => {
-    // Reuse existing segment if available (preserve formatting), else create new
     if (oldSegments[i]) {
       return { ...oldSegments[i], text: line };
     }
@@ -1820,10 +1788,6 @@ function getActiveParagraphIndex(text: string, cursorPos: number): number {
   const before = text.slice(0, cursorPos);
   return before.split("\n").length - 1;
 }
-
-// ─── Rendered Paragraphs (read-only display with formatting, shown when not focused) ──
-// NOTE: We use a single TextInput for editing. Formatting is purely visual reference
-// in the toolbar; the actual styled preview is shown via segments in the card share.
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -1850,15 +1814,12 @@ export default function NoteForm() {
   const verseRefRef = useRef(isNewNote ? "" : paramVerseRef);
   const verseTextRef = useRef(isNewNote ? "" : paramVerseText);
 
-  // ── Single text value for the editor ──────────────────────────────────────
-  // This is the single source of truth for the TextInput
   const [editorText, setEditorText] = useState("");
   const editorTextRef = useRef("");
 
   const [segments, setSegments] = useState<Segment[]>([defaultSegment()]);
   const segsRef = useRef<Segment[]>([defaultSegment()]);
 
-  // Track cursor position to know which paragraph is "active"
   const [cursorPos, setCursorPos] = useState(0);
   const cursorPosRef = useRef(0);
 
@@ -1908,16 +1869,13 @@ export default function NoteForm() {
   const activitiesRef = useRef<string[]>([]);
   const tagsRef = useRef<string[]>([]);
 
-  // Single ref for the one TextInput
   const editorInputRef = useRef<TextInput>(null);
 
   const hasContent = editorText.trim().length > 0;
   const isDevotionNote = !!(verseRef || verseText);
 
-  // ── Active paragraph index from cursor ──────────────────────────────────────
   const activeParagraphIdx = getActiveParagraphIndex(editorText, cursorPos);
 
-  // ── Sync fmt when cursor moves to different paragraph ───────────────────────
   useEffect(() => {
     const seg = segsRef.current[activeParagraphIdx];
     if (!seg) return;
@@ -1934,7 +1892,6 @@ export default function NoteForm() {
     });
   }, [activeParagraphIdx]);
 
-  // ── Keyboard listeners ──────────────────────────────────────────────────────
   useEffect(() => {
     const showEvt =
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -1951,7 +1908,6 @@ export default function NoteForm() {
     };
   }, []);
 
-  // ── Focus effect ────────────────────────────────────────────────────────────
   useFocusEffect(
     useCallback(() => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -2011,7 +1967,6 @@ export default function NoteForm() {
     }, [params.id, params.newKey]),
   );
 
-  // ── Load global tags ────────────────────────────────────────────────────────
   const loadGlobalTags = async () => {
     try {
       const stored = await Storage.getItem(STORAGE_KEYS.tags);
@@ -2025,7 +1980,6 @@ export default function NoteForm() {
     } catch (err) {}
   };
 
-  // ── Load note ───────────────────────────────────────────────────────────────
   const loadNote = async (idToLoad: string) => {
     try {
       const stored = await Storage.getItem(storageKey);
@@ -2039,7 +1993,6 @@ export default function NoteForm() {
         : [defaultSegment({ text: existing.text })];
       segsRef.current = segs;
       setSegments([...segs]);
-      // Rebuild editor text from segments
       const text = getRichText(segs);
       setEditorText(text);
       editorTextRef.current = text;
@@ -2068,7 +2021,6 @@ export default function NoteForm() {
     } catch (err) {}
   };
 
-  // ── Save ────────────────────────────────────────────────────────────────────
   const saveNow = async () => {
     if (isSaving.current) {
       await new Promise<void>((resolve) => {
@@ -2158,10 +2110,7 @@ export default function NoteForm() {
     });
   };
 
-  // ── Editor text change ──────────────────────────────────────────────────────
-  // This is the core handler. Single TextInput, syncs to segments.
   const handleEditorChange = (newText: string) => {
-    // Push undo history every ~500ms worth of changes (simplified: on every change batch)
     setHistory((h) => [
       ...h.slice(-30),
       { text: editorTextRef.current, segs: segsRef.current },
@@ -2177,7 +2126,6 @@ export default function NoteForm() {
     triggerSave();
   };
 
-  // ── Undo / Redo ─────────────────────────────────────────────────────────────
   const handleUndo = () => {
     if (history.length === 0) return;
     const prev = history[history.length - 1];
@@ -2210,12 +2158,9 @@ export default function NoteForm() {
     triggerSave();
   };
 
-  // ── Formatting ──────────────────────────────────────────────────────────────
-  // Applies formatting to the current paragraph (where cursor is)
   const applyFmt = (patch: Partial<Segment>) => {
     const newFmt = { ...fmt, ...patch };
     setFmt(newFmt);
-    // Apply to the active paragraph segment
     const idx = activeParagraphIdx;
     const newSegs = segsRef.current.map((s, i) =>
       i === idx ? { ...s, ...patch } : s,
@@ -2232,7 +2177,6 @@ export default function NoteForm() {
     applyFmt({ [key]: !fmt[key] });
   };
 
-  // ── Emotion / Activities / Tags ─────────────────────────────────────────────
   const setEmotionEntry = (entry: EmotionEntry | undefined) => {
     emotionRef.current = entry;
     setEmotion(entry);
@@ -2312,7 +2256,6 @@ export default function NoteForm() {
 
   const wordCount = editorText.trim().split(/\s+/).filter(Boolean).length;
 
-  // ── Active paragraph style (shows in toolbar which format is active) ─────────
   const activeSeg = segsRef.current[activeParagraphIdx];
 
   return (
@@ -2375,9 +2318,7 @@ export default function NoteForm() {
         </View>
       ) : null}
 
-      {/* ── SINGLE TextInput Editor ─────────────────────────────────────────── */}
-      {/* Replacing the segment-per-paragraph approach with one TextInput.       */}
-      {/* This allows native text selection to work freely across all paragraphs.*/}
+      {/* Single TextInput Editor */}
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={[
@@ -2391,9 +2332,6 @@ export default function NoteForm() {
           ref={editorInputRef}
           style={[
             s.editorInput,
-            // Apply the active paragraph's style to the whole input as a base.
-            // Full per-character rich text is not possible in a single RN TextInput,
-            // but we show formatting in the toolbar and apply it to paragraphs on save.
             activeSeg ? getSegmentTextStyle(activeSeg) : {},
           ]}
           value={editorText}
@@ -2404,7 +2342,7 @@ export default function NoteForm() {
             setCursorPos(pos);
           }}
           multiline={true}
-          scrollEnabled={false} // Let parent ScrollView handle scrolling
+          scrollEnabled={false}
           blurOnSubmit={false}
           selectionColor={journalColor}
           placeholder="Write here..."
@@ -2413,7 +2351,6 @@ export default function NoteForm() {
           autoCapitalize="sentences"
           textAlignVertical="top"
         />
-        {/* Tap area below content to focus editor */}
         <TouchableOpacity
           style={s.editorTapArea}
           activeOpacity={1}
@@ -2931,7 +2868,6 @@ export default function NoteForm() {
               contentContainerStyle={{ paddingBottom: 24 }}
               keyboardShouldPersistTaps="handled"
             >
-              {/* Counter */}
               <View
                 style={[
                   s.tagSectionHeader,
@@ -3212,8 +3148,6 @@ const s = StyleSheet.create({
     lineHeight: 22,
   },
   editorContent: { paddingTop: 10 },
-
-  // ── Single editor TextInput styles ──────────────────────────────────────────
   editorInput: {
     paddingHorizontal: 18,
     paddingVertical: 10,
@@ -3224,7 +3158,6 @@ const s = StyleSheet.create({
     textAlignVertical: "top",
     backgroundColor: "transparent",
   } as any,
-
   editorTapArea: { minHeight: 120 },
   wordCount: { color: "#2e2e2e", fontSize: 11, paddingHorizontal: 4 },
   undoBar: {

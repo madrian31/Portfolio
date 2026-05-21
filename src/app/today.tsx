@@ -16,33 +16,19 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { JournalIcon } from "../components/create-journal-modal";
+import {
+  makeId,
+  Prayer,
+  PRAYER_STORAGE_KEY,
+  PrayerCard,
+  PrayerStatus,
+  PrayerUpdate,
+  StatsBar,
+  STATUS_CONFIG,
+} from "../components/prayer-card";
 import { Storage, STORAGE_KEYS } from "../storage";
 import type { Journal } from "./index";
 
-// ─── SVG Icons ────────────────────────────────────────────────────────────────
-
-// Bootstrap check-circle-fill
-// Bootstrap archive
-// Bootstrap chevron-right
-// Bootstrap send (arrow-right-circle-fill) for update send button
-// Helper to render status icon from emoji key
-function renderStatusIcon(
-  emoji: string,
-  color: string,
-  size = 14,
-): React.ReactNode {
-  if (emoji === "pray")
-    return <FontAwesome6 name="hands-praying" size={size} color={color} />;
-  if (emoji === "check")
-    return <FontAwesome6 name="circle-check" size={size} color={color} />;
-  if (emoji === "archive")
-    return <FontAwesome6 name="box-archive" size={size} color={color} />;
-  return null;
-}
-
-// ─── Aliased / Extra Bootstrap Icons ─────────────────────────────────────────
-
-// Section label decorators — small recognizable shapes per section
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type DailyVerse = {
@@ -60,57 +46,35 @@ type Note = {
   date: string;
 };
 
-type PrayerStatus = "pending" | "answered" | "archived";
-
-type PrayerUpdate = {
-  id: string;
-  text: string;
-  date: string;
-};
-
-type Prayer = {
-  id: string;
-  title: string;
-  description: string;
-  status: PrayerStatus;
-  tags: string[];
-  emoji: string;
-  isPrivate: boolean;
-  createdAt: string;
-  answeredAt?: string;
-  updates: PrayerUpdate[];
-};
-
 type PrayerViewMode = "list" | "carousel";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const PRAYER_STORAGE_KEY = "prayer_list";
 const PRAYER_VIEW_KEY = "prayer_view_mode";
 const SCREEN_WIDTH = Dimensions.get("window").width;
-const CARD_WIDTH = SCREEN_WIDTH - 40 - 32; // container padding + carousel padding
+const CARD_WIDTH = SCREEN_WIDTH - 40 - 32;
 
 const PRAYER_ICONS = [
-  { key: "hands-praying", iconStyle: "solid" },
-  { key: "cross", iconStyle: "solid" },
-  { key: "heart", iconStyle: "solid" },
-  { key: "star", iconStyle: "solid" },
-  { key: "dove", iconStyle: "solid" },
-  { key: "fire", iconStyle: "solid" },
-  { key: "sun", iconStyle: "solid" },
-  { key: "moon", iconStyle: "solid" },
-  { key: "droplet", iconStyle: "solid" },
-  { key: "seedling", iconStyle: "solid" },
-  { key: "leaf", iconStyle: "solid" },
-  { key: "hand-holding-heart", iconStyle: "solid" },
-  { key: "shield-halved", iconStyle: "solid" },
-  { key: "church", iconStyle: "solid" },
-  { key: "book-bible", iconStyle: "solid" },
-  { key: "circle-nodes", iconStyle: "solid" },
-  { key: "bolt", iconStyle: "solid" },
-  { key: "rainbow", iconStyle: "solid" },
-  { key: "infinity", iconStyle: "solid" },
-  { key: "peace", iconStyle: "solid" },
+  "hands-praying",
+  "cross",
+  "heart",
+  "star",
+  "dove",
+  "fire",
+  "sun",
+  "moon",
+  "droplet",
+  "seedling",
+  "leaf",
+  "hand-holding-heart",
+  "shield-halved",
+  "church",
+  "book-bible",
+  "bolt",
+  "rainbow",
+  "infinity",
+  "peace",
+  "circle-nodes",
 ];
 
 const AVAILABLE_TAGS = [
@@ -127,15 +91,6 @@ const AVAILABLE_TAGS = [
   "faith",
   "future",
 ];
-
-const STATUS_CONFIG: Record<
-  PrayerStatus,
-  { label: string; color: string; emoji: string }
-> = {
-  pending: { label: "Praying", color: "#c084fc", emoji: "pray" },
-  answered: { label: "Answered", color: "#4ade80", emoji: "check" },
-  archived: { label: "Archived", color: "#555", emoji: "archive" },
-};
 
 // ─── Bible helpers ────────────────────────────────────────────────────────────
 
@@ -207,10 +162,6 @@ function formatDate(date: Date) {
   });
 }
 
-function makeId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2);
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function TodayScreen() {
@@ -218,7 +169,6 @@ export default function TodayScreen() {
   const router = useRouter();
   const carouselRef = useRef<FlatList>(null);
 
-  // — Existing state —
   const [verse, setVerse] = useState<DailyVerse | null>(null);
   const [verseLoading, setVerseLoading] = useState(true);
   const [journals, setJournals] = useState<Journal[]>([]);
@@ -228,25 +178,23 @@ export default function TodayScreen() {
   const [username, setUsername] = useState("");
   const [streak, setStreak] = useState(0);
 
-  // — Prayer state —
+  // Prayer state
   const [prayers, setPrayers] = useState<Prayer[]>([]);
   const [prayerView, setPrayerView] = useState<PrayerViewMode>("list");
   const [carouselIndex, setCarouselIndex] = useState(0);
 
-  // Add form modal
+  // Add form
   const [formVisible, setFormVisible] = useState(false);
   const [formTitle, setFormTitle] = useState("");
   const [formDesc, setFormDesc] = useState("");
   const [formEmoji, setFormEmoji] = useState("hands-praying");
   const [formTags, setFormTags] = useState<string[]>([]);
-  const [formPrivate, setFormPrivate] = useState(true);
+  const [formPrivate, setFormPrivate] = useState(false);
 
   // Detail modal
   const [detailVisible, setDetailVisible] = useState(false);
   const [selectedPrayer, setSelectedPrayer] = useState<Prayer | null>(null);
   const [updateText, setUpdateText] = useState("");
-
-  // ── Load ──
 
   useEffect(() => {
     fetchDailyVerse().then((v) => {
@@ -293,11 +241,20 @@ export default function TodayScreen() {
       }
       setStreak(s);
 
-      // Load prayers
       const pRaw = await Storage.getItem(PRAYER_STORAGE_KEY);
-      setPrayers(pRaw ? JSON.parse(pRaw) : []);
+      if (pRaw) {
+        const parsed: Prayer[] = JSON.parse(pRaw);
+        const migrated = parsed.map((p) =>
+          p.isPrivate ? { ...p, isPrivate: false } : p,
+        );
+        if (migrated.some((p, i) => p.isPrivate !== parsed[i].isPrivate)) {
+          await Storage.setItem(PRAYER_STORAGE_KEY, JSON.stringify(migrated));
+        }
+        setPrayers(migrated);
+      } else {
+        setPrayers([]);
+      }
 
-      // Load saved view preference
       const savedView = await Storage.getItem(PRAYER_VIEW_KEY);
       if (savedView === "carousel" || savedView === "list")
         setPrayerView(savedView);
@@ -305,8 +262,6 @@ export default function TodayScreen() {
       console.log("TodayScreen loadData error:", err);
     }
   };
-
-  // ── Prayer helpers ──
 
   const savePrayers = async (updated: Prayer[]) => {
     setPrayers(updated);
@@ -381,12 +336,8 @@ export default function TodayScreen() {
     Keyboard.dismiss();
   };
 
-  // Only show pending prayers in Today's section
   const pendingPrayers = prayers.filter((p) => p.status === "pending");
-
   const displayName = username ? username.split(" ")[0] : null;
-
-  // ── Navigation ──
 
   const goToNoteForm = (journalId: string, journalColor: string) =>
     router.push(
@@ -400,7 +351,7 @@ export default function TodayScreen() {
 
   const goToPrayerList = () => router.push("../prayer-list" as any);
 
-  // ─── Render ──────────────────────────────────────────────────────────────────
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <ScrollView
@@ -456,7 +407,7 @@ export default function TodayScreen() {
               <Pressable
                 onPress={() =>
                   router.push(
-                    `../bible-reader?book=${encodeURIComponent(verse.bookName)}&chapter=${verse.chapter}` as any,
+                    `../bible-reader?book=${encodeURIComponent(verse.bookName)}&chapter=${verse.chapter}&verse=${verse.verse}` as any,
                   )
                 }
                 style={styles.readMoreBtn}
@@ -470,16 +421,12 @@ export default function TodayScreen() {
 
       {/* ── Prayer Section ── */}
       <View style={[styles.sectionLabel, { marginTop: 8 }]}>
-        {/* Left: label + count */}
         <FontAwesome6 name="hands-praying" size={9} color="#444" />
         <Text style={styles.sectionLabelText}>MY PRAYERS</Text>
         {pendingPrayers.length > 0 && (
           <Text style={styles.sectionCount}>{pendingPrayers.length}</Text>
         )}
-
-        {/* Right: view toggle + add */}
         <View style={styles.prayerHeaderActions}>
-          {/* List/Carousel toggle */}
           <View style={styles.viewToggle}>
             <Pressable
               onPress={() => toggleView("list")}
@@ -508,8 +455,6 @@ export default function TodayScreen() {
               />
             </Pressable>
           </View>
-
-          {/* Add button */}
           <Pressable
             onPress={openAddForm}
             style={({ pressed }) => [
@@ -522,11 +467,14 @@ export default function TodayScreen() {
         </View>
       </View>
 
+      {/* Stats bar */}
+      {prayers.length > 0 && <StatsBar prayers={prayers} />}
+
       {/* Empty prayer state */}
       {pendingPrayers.length === 0 && (
         <Pressable onPress={openAddForm} style={styles.prayerEmpty}>
-          <View style={{ marginBottom: 10 }}>
-            <FontAwesome6 name="hands-praying" size={36} color="#444" />
+          <View style={styles.prayerEmptyIconWrap}>
+            <FontAwesome6 name="hands-praying" size={28} color="#c084fc" />
           </View>
           <Text style={styles.prayerEmptyText}>No active prayers</Text>
           <Text style={styles.prayerEmptySub}>
@@ -537,75 +485,22 @@ export default function TodayScreen() {
 
       {/* ── LIST VIEW ── */}
       {prayerView === "list" && pendingPrayers.length > 0 && (
-        <View style={styles.prayerList}>
-          {pendingPrayers.slice(0, 3).map((prayer) => {
-            const cfg = STATUS_CONFIG[prayer.status];
-            return (
-              <Pressable
-                key={prayer.id}
-                style={({ pressed }) => [
-                  styles.prayerListCard,
-                  pressed && { opacity: 0.75 },
-                ]}
-                onPress={() => {
-                  setSelectedPrayer(prayer);
-                  setDetailVisible(true);
-                }}
-              >
-                <View
-                  style={[
-                    styles.prayerListAccent,
-                    { backgroundColor: cfg.color },
-                  ]}
-                />
-                <View style={styles.prayerListEmojiBg}>
-                  <FontAwesome6
-                    name={prayer.emoji || "hands-praying"}
-                    size={16}
-                    color="#c084fc"
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.prayerListTitle} numberOfLines={1}>
-                    {prayer.title}
-                  </Text>
-                  {prayer.description ? (
-                    <Text style={styles.prayerListDesc} numberOfLines={1}>
-                      {prayer.description}
-                    </Text>
-                  ) : null}
-                  {prayer.tags.length > 0 && (
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        gap: 4,
-                        marginTop: 4,
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      {prayer.tags.slice(0, 3).map((t) => (
-                        <View key={t} style={styles.tagChip}>
-                          <Text style={styles.tagChipText}>{t}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </View>
-                <View style={styles.prayerListRight}>
-                  {prayer.updates.length > 0 && (
-                    <View style={styles.updateBadge}>
-                      <Text style={styles.updateBadgeText}>
-                        {prayer.updates.length}
-                      </Text>
-                    </View>
-                  )}
-                  <FontAwesome6 name="chevron-right" size={12} color="#333" />
-                </View>
-              </Pressable>
-            );
-          })}
-
-          {/* See all */}
+        <View style={{ marginBottom: 4 }}>
+          {pendingPrayers.slice(0, 3).map((prayer) => (
+            <PrayerCard
+              key={prayer.id}
+              item={prayer}
+              compact
+              onPress={() => {
+                setSelectedPrayer(prayer);
+                setDetailVisible(true);
+              }}
+              onLongPress={() => {
+                setSelectedPrayer(prayer);
+                setDetailVisible(true);
+              }}
+            />
+          ))}
           {prayers.length > 0 && (
             <Pressable onPress={goToPrayerList} style={styles.seeAllBtn}>
               <Text style={styles.seeAllText}>
@@ -636,84 +531,18 @@ export default function TodayScreen() {
               );
               setCarouselIndex(idx);
             }}
-            renderItem={({ item: prayer }: { item: Prayer }) => {
-              const cfg = STATUS_CONFIG[prayer.status as PrayerStatus];
-              return (
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.carouselCard,
-                    { width: CARD_WIDTH },
-                    pressed && { opacity: 0.85 },
-                  ]}
+            renderItem={({ item: prayer }) => (
+              <View style={{ width: CARD_WIDTH }}>
+                <PrayerCard
+                  item={prayer}
                   onPress={() => {
                     setSelectedPrayer(prayer);
                     setDetailVisible(true);
                   }}
-                >
-                  {/* Emoji top-left */}
-                  <View style={styles.carouselEmojiBg}>
-                    <FontAwesome6
-                      name={prayer.emoji || "hands-praying"}
-                      size={28}
-                      color="#c084fc"
-                    />
-                  </View>
-
-                  {/* Content below */}
-                  <Text style={styles.carouselTitle} numberOfLines={2}>
-                    {prayer.title}
-                  </Text>
-                  {prayer.description ? (
-                    <Text style={styles.carouselDesc} numberOfLines={2}>
-                      {prayer.description}
-                    </Text>
-                  ) : null}
-                  {prayer.tags.length > 0 && (
-                    <View style={styles.carouselTags}>
-                      {prayer.tags.slice(0, 3).map((t: string) => (
-                        <View
-                          key={t}
-                          style={[
-                            styles.tagChip,
-                            {
-                              backgroundColor: cfg.color + "18",
-                              borderColor: cfg.color + "30",
-                            },
-                          ]}
-                        >
-                          <Text
-                            style={[styles.tagChipText, { color: cfg.color }]}
-                          >
-                            {t}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                  <View style={styles.carouselFooter}>
-                    <View
-                      style={[
-                        styles.carouselStatusDot,
-                        { backgroundColor: cfg.color },
-                      ]}
-                    />
-                    <Text style={[styles.carouselStatus, { color: cfg.color }]}>
-                      {cfg.label}
-                    </Text>
-                    {prayer.updates.length > 0 && (
-                      <View style={[styles.updateBadge, { marginLeft: 4 }]}>
-                        <Text style={styles.updateBadgeText}>
-                          {prayer.updates.length}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                </Pressable>
-              );
-            }}
+                />
+              </View>
+            )}
           />
-
-          {/* Dots indicator */}
           {pendingPrayers.length > 1 && (
             <View style={styles.dotsRow}>
               {pendingPrayers.map((_, i) => (
@@ -724,8 +553,6 @@ export default function TodayScreen() {
               ))}
             </View>
           )}
-
-          {/* See all */}
           {prayers.length > 0 && (
             <Pressable
               onPress={goToPrayerList}
@@ -880,7 +707,6 @@ export default function TodayScreen() {
             contentContainerStyle={{ padding: 20, gap: 20 }}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Emoji */}
             <View>
               <Text style={styles.fieldLabel}>ICON</Text>
               <ScrollView
@@ -891,20 +717,20 @@ export default function TodayScreen() {
                 <View style={{ flexDirection: "row", gap: 10 }}>
                   {PRAYER_ICONS.map((icon) => (
                     <Pressable
-                      key={icon.key}
-                      onPress={() => setFormEmoji(icon.key)}
+                      key={icon}
+                      onPress={() => setFormEmoji(icon)}
                       style={[
                         styles.emojiBtn,
-                        formEmoji === icon.key && {
+                        formEmoji === icon && {
                           borderColor: "#c084fc",
                           backgroundColor: "#c084fc18",
                         },
                       ]}
                     >
                       <FontAwesome6
-                        name={icon.key}
+                        name={icon}
                         size={20}
-                        color={formEmoji === icon.key ? "#c084fc" : "#666"}
+                        color={formEmoji === icon ? "#c084fc" : "#666"}
                       />
                     </Pressable>
                   ))}
@@ -912,14 +738,13 @@ export default function TodayScreen() {
               </ScrollView>
             </View>
 
-            {/* Title */}
             <View>
               <Text style={styles.fieldLabel}>PRAYER</Text>
               <TextInput
                 style={styles.textInput}
                 value={formTitle}
                 onChangeText={setFormTitle}
-                placeholder="What are you praying for?"
+                placeholder="What are you lifting up to God?"
                 placeholderTextColor="#444"
                 selectionColor="#c084fc"
                 autoFocus
@@ -927,14 +752,13 @@ export default function TodayScreen() {
               />
             </View>
 
-            {/* Description */}
             <View>
               <Text style={styles.fieldLabel}>DETAILS (optional)</Text>
               <TextInput
                 style={[styles.textInput, styles.textArea]}
                 value={formDesc}
                 onChangeText={setFormDesc}
-                placeholder="Add your heart's intention..."
+                placeholder="Share more of your heart..."
                 placeholderTextColor="#444"
                 selectionColor="#c084fc"
                 multiline
@@ -944,7 +768,6 @@ export default function TodayScreen() {
               />
             </View>
 
-            {/* Tags */}
             <View>
               <Text style={styles.fieldLabel}>TAGS</Text>
               <View style={styles.tagGrid}>
@@ -1015,18 +838,23 @@ export default function TodayScreen() {
                   contentContainerStyle={{ padding: 20 }}
                   keyboardShouldPersistTaps="handled"
                 >
-                  {/* Head */}
-                  <View style={styles.detailHead}>
+                  <View
+                    style={[
+                      styles.detailHead,
+                      selectedPrayer.status === "answered" &&
+                        styles.detailHeadAnswered,
+                    ]}
+                  >
                     <View
                       style={[
                         styles.detailEmojiBg,
-                        { backgroundColor: cfg.color + "20" },
+                        { backgroundColor: cfg.bg },
                       ]}
                     >
                       <FontAwesome6
                         name={selectedPrayer.emoji || "hands-praying"}
                         size={32}
-                        color="#c084fc"
+                        color={cfg.color}
                       />
                     </View>
                     <Text style={styles.detailTitle}>
@@ -1036,12 +864,16 @@ export default function TodayScreen() {
                       style={[
                         styles.statusBadge,
                         {
-                          backgroundColor: cfg.color + "20",
+                          backgroundColor: cfg.bg,
                           borderColor: cfg.color + "50",
                         },
                       ]}
                     >
-                      <View>{renderStatusIcon(cfg.emoji, cfg.color, 13)}</View>
+                      <FontAwesome6
+                        name={cfg.faIcon}
+                        size={13}
+                        color={cfg.color}
+                      />
                       <Text
                         style={[styles.statusBadgeText, { color: cfg.color }]}
                       >
@@ -1071,7 +903,6 @@ export default function TodayScreen() {
                     </Text>
                   </View>
 
-                  {/* Mark answered */}
                   {selectedPrayer.status === "pending" && (
                     <Pressable
                       onPress={() => markAnswered(selectedPrayer)}
@@ -1080,34 +911,25 @@ export default function TodayScreen() {
                         pressed && { opacity: 0.75 },
                       ]}
                     >
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <FontAwesome6
-                          name="circle-check"
-                          size={16}
-                          color="#4ade80"
-                        />
-                        <Text style={styles.answeredBtnText}>
-                          Mark as Answered
-                        </Text>
-                      </View>
+                      <FontAwesome6
+                        name="circle-check"
+                        size={16}
+                        color="#4ade80"
+                      />
+                      <Text style={styles.answeredBtnText}>
+                        Mark as Answered
+                      </Text>
                     </Pressable>
                   )}
 
-                  {/* Updates */}
                   <View style={styles.updateSection}>
-                    <Text style={styles.fieldLabel}>PRAYER UPDATES</Text>
+                    <Text style={styles.fieldLabel}>PRAYER JOURNAL</Text>
                     <View style={styles.updateInputRow}>
                       <TextInput
                         style={styles.updateInput}
                         value={updateText}
                         onChangeText={setUpdateText}
-                        placeholder="Add a note or update..."
+                        placeholder="Record what God is doing..."
                         placeholderTextColor="#444"
                         selectionColor="#c084fc"
                         multiline
@@ -1128,7 +950,7 @@ export default function TodayScreen() {
                     </View>
                     {selectedPrayer.updates.length === 0 && (
                       <Text style={styles.noUpdates}>
-                        No updates yet. Journal your prayer journey here.
+                        Write notes as God moves. Document your faith journey.
                       </Text>
                     )}
                     {selectedPrayer.updates.map((u) => (
@@ -1160,7 +982,6 @@ export default function TodayScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000", paddingHorizontal: 20 },
-
   header: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
   headerLabel: {
     color: "#555",
@@ -1195,7 +1016,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#2a2a2a",
   },
-  streakFire: { fontSize: 16 },
   streakCount: { color: "#fff", fontSize: 16, fontWeight: "700" },
 
   sectionLabel: {
@@ -1212,7 +1032,6 @@ const styles = StyleSheet.create({
   },
   sectionCount: { color: "#333", fontSize: 11, fontWeight: "600", flex: 1 },
 
-  // Verse
   verseCard: {
     backgroundColor: "#0e0e1a",
     borderRadius: 16,
@@ -1244,7 +1063,6 @@ const styles = StyleSheet.create({
   },
   readMoreText: { color: "#c084fc", fontSize: 12, fontWeight: "600" },
 
-  // Prayer section header actions
   prayerHeaderActions: {
     flexDirection: "row",
     alignItems: "center",
@@ -1261,8 +1079,6 @@ const styles = StyleSheet.create({
   },
   viewToggleBtn: { paddingHorizontal: 10, paddingVertical: 6 },
   viewToggleBtnActive: { backgroundColor: "#2a2a2a" },
-  viewToggleIcon: { fontSize: 14, color: "#444" },
-  viewToggleIconActive: { color: "#c084fc" },
   prayerAddBtn: {
     width: 30,
     height: 30,
@@ -1271,20 +1087,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  prayerAddText: { color: "#fff", fontSize: 18, lineHeight: 22 },
 
-  // Prayer empty
   prayerEmpty: {
-    backgroundColor: "#111",
+    backgroundColor: "#0f0f0f",
     borderRadius: 16,
     padding: 28,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#1e1e1e",
+    borderColor: "#1c1c1c",
     borderStyle: "dashed",
     marginBottom: 4,
   },
-  prayerEmptyIcon: { fontSize: 32, marginBottom: 8 },
+  prayerEmptyIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: "#c084fc12",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#c084fc20",
+  },
   prayerEmptyText: {
     color: "#fff",
     fontSize: 15,
@@ -1293,100 +1117,9 @@ const styles = StyleSheet.create({
   },
   prayerEmptySub: { color: "#444", fontSize: 12 },
 
-  // List view
-  prayerList: { gap: 8, marginBottom: 4 },
-  prayerListCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#111",
-    borderRadius: 14,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#1e1e1e",
-    paddingVertical: 10,
-    paddingRight: 12,
-  },
-  prayerListAccent: { width: 4, alignSelf: "stretch" },
-  prayerListEmojiBg: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    marginHorizontal: 10,
-    backgroundColor: "#1a1a1a",
-    borderWidth: 1,
-    borderColor: "#2a2a2a",
-  },
-  prayerListTitle: { color: "#f0f0f0", fontSize: 14, fontWeight: "600" },
-  prayerListDesc: { color: "#555", fontSize: 12, marginTop: 2 },
-  prayerListRight: { alignItems: "center", gap: 4 },
-  chevron: {
-    width: 16,
-    height: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  seeAllBtn: { alignItems: "center", paddingVertical: 12 },
+  seeAllText: { color: "#c084fc", fontSize: 13, fontWeight: "600" },
 
-  // Carousel view
-  carouselCard: {
-    backgroundColor: "#111",
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#1e1e1e",
-    overflow: "hidden",
-  },
-  carouselGlow: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 80,
-    borderRadius: 20,
-  },
-  carouselEmojiBg: {
-    width: 50,
-    height: 50,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-    backgroundColor: "#1a1a1a",
-    borderWidth: 1,
-    borderColor: "#2a2a2a",
-  },
-  carouselEmoji: { fontSize: 32 },
-  carouselTitle: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "700",
-    lineHeight: 24,
-    marginBottom: 8,
-  },
-  carouselDesc: {
-    color: "#666",
-    fontSize: 13,
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  carouselTags: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginBottom: 16,
-  },
-  carouselFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: "auto",
-  },
-  carouselStatusDot: { width: 6, height: 6, borderRadius: 3 },
-  carouselStatus: { fontSize: 12, fontWeight: "600" },
-  carouselLock: { fontSize: 11, marginLeft: "auto" },
-
-  // Dots
   dotsRow: {
     flexDirection: "row",
     justifyContent: "center",
@@ -1397,29 +1130,6 @@ const styles = StyleSheet.create({
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#2a2a2a" },
   dotActive: { backgroundColor: "#c084fc", width: 18 },
 
-  // See all
-  seeAllBtn: { alignItems: "center", paddingVertical: 12 },
-  seeAllText: { color: "#c084fc", fontSize: 13, fontWeight: "600" },
-
-  // Shared chips
-  tagChip: {
-    backgroundColor: "#1e1e1e",
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  tagChipText: { color: "#666", fontSize: 11, fontWeight: "500" },
-  updateBadge: {
-    backgroundColor: "#c084fc22",
-    borderRadius: 8,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  updateBadgeText: { color: "#c084fc", fontSize: 11, fontWeight: "700" },
-
-  // Today's entries
   emptyToday: {
     alignItems: "center",
     paddingVertical: 24,
@@ -1429,7 +1139,6 @@ const styles = StyleSheet.create({
     borderColor: "#1e1e1e",
     marginBottom: 4,
   },
-  emptyTodayIcon: { fontSize: 28, marginBottom: 8 },
   emptyTodayText: {
     color: "#fff",
     fontSize: 15,
@@ -1462,7 +1171,6 @@ const styles = StyleSheet.create({
   },
   todayNotePreview: { color: "#555", fontSize: 13, lineHeight: 18 },
 
-  // Quick write
   quickJournalBtn: {
     backgroundColor: "#111",
     borderRadius: 14,
@@ -1485,7 +1193,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     textAlign: "center",
   },
-  quickJournalPlus: { fontSize: 18, fontWeight: "300" },
   noJournalsCard: {
     backgroundColor: "#111",
     borderRadius: 14,
@@ -1496,7 +1203,6 @@ const styles = StyleSheet.create({
   },
   noJournalsText: { color: "#444", fontSize: 13 },
 
-  // Modal shared
   modalContainer: { flex: 1, backgroundColor: "#161616" },
   modalHeader: {
     flexDirection: "row",
@@ -1557,43 +1263,25 @@ const styles = StyleSheet.create({
   tagPillActive: { borderColor: "#c084fc", backgroundColor: "#c084fc18" },
   tagPillText: { color: "#555", fontSize: 13 },
   tagPillTextActive: { color: "#c084fc", fontWeight: "600" },
-  privateRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#1a1a1a",
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#252525",
-  },
-  privateLabel: { color: "#e0e0e0", fontSize: 15, fontWeight: "500" },
-  privateSub: { color: "#555", fontSize: 12, marginTop: 2 },
-  toggle: {
-    width: 50,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#333",
-    padding: 3,
-    justifyContent: "center",
-  },
-  toggleOn: { backgroundColor: "#c084fc40" },
-  toggleThumb: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "#555",
-  },
-  toggleThumbOn: { backgroundColor: "#c084fc", alignSelf: "flex-end" },
 
-  // Detail modal
+  tagChip: {
+    backgroundColor: "#1e1e1e",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  tagChipText: { color: "#666", fontSize: 11, fontWeight: "500" },
+
   detailHead: {
     alignItems: "center",
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#1a1a1a",
+    paddingVertical: 24,
     marginBottom: 20,
+    borderRadius: 16,
+    backgroundColor: "#0f0f0f",
+    borderWidth: 1,
+    borderColor: "#1a1a1a",
   },
+  detailHeadAnswered: { borderColor: "#4ade8025", backgroundColor: "#0a110a" },
   detailEmojiBg: {
     width: 80,
     height: 80,
@@ -1608,6 +1296,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlign: "center",
     marginBottom: 10,
+    paddingHorizontal: 20,
   },
   statusBadge: {
     flexDirection: "row",
@@ -1635,16 +1324,21 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   detailDate: { color: "#3a3a3a", fontSize: 12, fontWeight: "500" },
+
   answeredBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
     backgroundColor: "#4ade8018",
     borderWidth: 1,
     borderColor: "#4ade8040",
     borderRadius: 14,
     padding: 16,
-    alignItems: "center",
     marginBottom: 20,
   },
   answeredBtnText: { color: "#4ade80", fontSize: 15, fontWeight: "600" },
+
   updateSection: { marginBottom: 20 },
   updateInputRow: {
     flexDirection: "row",
@@ -1673,7 +1367,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignSelf: "flex-end",
   },
-  updateSendText: { color: "#fff" },
   noUpdates: {
     color: "#333",
     fontSize: 13,

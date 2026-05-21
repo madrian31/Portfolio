@@ -1,47 +1,50 @@
 ﻿import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Dimensions,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   View,
 } from "react-native";
-import Svg, {
-  Circle,
-  Defs,
-  LinearGradient,
-  Path,
-  Stop,
-} from "react-native-svg";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const ICON_SIZE = Math.min((SCREEN_WIDTH - 40 - 6 * 8) / 7, 48);
 
 // ─── Color Palette ────────────────────────────────────────────────────────────
-const COLORS = [
-  "#9b3a6a",
-  "#e03535",
-  "#e060a0",
-  "#e07070",
-  "#c49060",
-  "#f0904a",
-  "#00c896",
-  "#00bcd4",
-  "#3b5fe0",
-  "#607890",
-  "#80b0e8",
-  "#9060d0",
-  "#111111",
-  "rainbow",
-];
 
-// ─── FontAwesome6 Icon Mapping ────────────────────────────────────────────────
+const COLS = 8;
+const ROWS = 3;
+const H_PAD = 20;
+const SWATCH_GAP = 6;
+const SWATCH_SIZE = Math.floor(
+  (SCREEN_WIDTH - H_PAD * 2 - SWATCH_GAP * (COLS - 1)) / COLS,
+);
+const PAGE_WIDTH = SCREEN_WIDTH - H_PAD * 2;
+
+// ─── Icon Map ─────────────────────────────────────────────────────────────────
 type FAIconDef = { name: string; style?: "regular" | "solid" };
 
 const ICON_MAP: Record<string, FAIconDef> = {
+  // ── Devotion ──────────────────────────────────────────────────────────────
+  cross: { name: "cross", style: "solid" },
+  pray: { name: "hands-praying", style: "solid" },
+  biblia: { name: "book-bible", style: "solid" },
+  church: { name: "church", style: "solid" },
+  heart: { name: "heart", style: "solid" },
+  star: { name: "star", style: "solid" },
+  dove: { name: "dove", style: "solid" },
+  crown: { name: "crown", style: "solid" },
+  scroll: { name: "scroll", style: "solid" },
+  candle: { name: "fire", style: "solid" },
+  shield: { name: "shield-halved", style: "solid" },
+  handsheart: { name: "hand-holding-heart", style: "solid" },
+  ankh: { name: "ankh", style: "solid" },
+  menorah: { name: "menorah", style: "solid" },
+  // ── General ───────────────────────────────────────────────────────────────
   smiley: { name: "face-smile", style: "regular" },
   journals: { name: "book", style: "solid" },
   home: { name: "house", style: "solid" },
@@ -54,10 +57,38 @@ const ICON_MAP: Record<string, FAIconDef> = {
   balloon: { name: "gift", style: "solid" },
   bulb: { name: "lightbulb", style: "regular" },
   flower: { name: "seedling", style: "solid" },
-  plane: { name: "paper-plane", style: "solid" },
-  map: { name: "map", style: "regular" },
+  notepad: { name: "pen-to-square", style: "solid" },
+  clock: { name: "clock", style: "regular" },
+  bell: { name: "bell", style: "solid" },
+  flag: { name: "flag", style: "solid" },
+  // ── Health & Fitness ──────────────────────────────────────────────────────
+  dumbbell: { name: "dumbbell", style: "solid" },
+  heartpulse: { name: "heart-pulse", style: "solid" },
+  running: { name: "person-running", style: "solid" },
+  bicycle2: { name: "bicycle", style: "solid" },
+  swimming: { name: "person-swimming", style: "solid" },
+  apple2: { name: "apple-whole", style: "solid" },
+  salad: { name: "leaf", style: "solid" },
+  pill: { name: "pills", style: "solid" },
+  stethoscope: { name: "stethoscope", style: "solid" },
+  bed2: { name: "bed-pulse", style: "solid" },
+  brain: { name: "brain", style: "solid" },
+  spa: { name: "spa", style: "solid" },
+  // ── Work & Study ──────────────────────────────────────────────────────────
+  briefcase: { name: "briefcase", style: "solid" },
+  laptop: { name: "laptop", style: "solid" },
+  chart: { name: "chart-line", style: "solid" },
+  graduation: { name: "graduation-cap", style: "solid" },
+  pencil: { name: "pencil", style: "solid" },
+  calculator: { name: "calculator", style: "solid" },
+  microscope: { name: "microscope", style: "solid" },
+  chalkboard: { name: "chalkboard-user", style: "solid" },
+  clipboard: { name: "clipboard", style: "regular" },
+  code: { name: "code", style: "solid" },
+  // ── Travel ────────────────────────────────────────────────────────────────
   pin: { name: "location-dot", style: "solid" },
   globe: { name: "globe", style: "solid" },
+  plane: { name: "plane", style: "solid" },
   car: { name: "car", style: "solid" },
   bike: { name: "bicycle", style: "solid" },
   ship: { name: "ship", style: "solid" },
@@ -65,11 +96,12 @@ const ICON_MAP: Record<string, FAIconDef> = {
   tent: { name: "tent", style: "solid" },
   signpost: { name: "signs-post", style: "solid" },
   camera: { name: "camera", style: "solid" },
-  palm: { name: "tree", style: "solid" },
   bus: { name: "bus", style: "solid" },
   train: { name: "train", style: "solid" },
   moto: { name: "motorcycle", style: "solid" },
-  backpack: { name: "briefcase", style: "solid" },
+  map: { name: "map", style: "regular" },
+  compass: { name: "compass", style: "regular" },
+  // ── Food & Drink ──────────────────────────────────────────────────────────
   fork: { name: "utensils", style: "solid" },
   spoon: { name: "spoon", style: "solid" },
   coffee: { name: "mug-hot", style: "solid" },
@@ -77,10 +109,14 @@ const ICON_MAP: Record<string, FAIconDef> = {
   wine: { name: "wine-glass", style: "solid" },
   wok: { name: "bowl-food", style: "solid" },
   carrot: { name: "carrot", style: "solid" },
-  apple: { name: "apple-whole", style: "solid" },
   cake: { name: "cake-candles", style: "solid" },
   popcorn: { name: "cookie", style: "solid" },
   basket: { name: "basket-shopping", style: "solid" },
+  pizza: { name: "pizza-slice", style: "solid" },
+  burger: { name: "burger", style: "solid" },
+  icecream: { name: "ice-cream", style: "solid" },
+  martini: { name: "martini-glass", style: "solid" },
+  // ── Nature & Weather ──────────────────────────────────────────────────────
   mountain: { name: "mountain", style: "solid" },
   sun: { name: "sun", style: "solid" },
   snow: { name: "snowflake", style: "regular" },
@@ -91,12 +127,42 @@ const ICON_MAP: Record<string, FAIconDef> = {
   rainbow: { name: "rainbow", style: "solid" },
   leaf: { name: "leaf", style: "solid" },
   tree: { name: "tree", style: "solid" },
-  binoculars: { name: "binoculars", style: "solid" },
-  atom: { name: "atom", style: "solid" },
+  volcano: { name: "volcano", style: "solid" },
+  wind: { name: "wind", style: "solid" },
+  water: { name: "water", style: "solid" },
+  seedling: { name: "seedling", style: "solid" },
+  // ── Animals ───────────────────────────────────────────────────────────────
   dog: { name: "dog", style: "solid" },
   cat: { name: "cat", style: "solid" },
   bird: { name: "dove", style: "solid" },
-  turtle: { name: "shield-halved", style: "solid" },
+  fish: { name: "fish", style: "solid" },
+  horse: { name: "horse", style: "solid" },
+  frog: { name: "frog", style: "solid" },
+  spider: { name: "spider", style: "solid" },
+  worm: { name: "worm", style: "solid" },
+  // ── Hobbies & Arts ────────────────────────────────────────────────────────
+  palette: { name: "palette", style: "solid" },
+  music: { name: "music", style: "solid" },
+  guitar: { name: "guitar", style: "solid" },
+  film: { name: "film", style: "solid" },
+  gamepad: { name: "gamepad", style: "solid" },
+  chess: { name: "chess", style: "solid" },
+  dice: { name: "dice", style: "solid" },
+  book2: { name: "book-bookmark", style: "solid" },
+  theater: { name: "masks-theater", style: "solid" },
+  microphone: { name: "microphone", style: "solid" },
+  headphones: { name: "headphones", style: "solid" },
+  trophy: { name: "trophy", style: "solid" },
+  // ── Finance ───────────────────────────────────────────────────────────────
+  money: { name: "money-bill-wave", style: "solid" },
+  coins: { name: "coins", style: "solid" },
+  piggy: { name: "piggy-bank", style: "solid" },
+  wallet: { name: "wallet", style: "solid" },
+  creditcard: { name: "credit-card", style: "regular" },
+  chartbar: { name: "chart-bar", style: "solid" },
+  building: { name: "building-columns", style: "solid" },
+  handmoney: { name: "hand-holding-dollar", style: "solid" },
+  // ── Family & People ───────────────────────────────────────────────────────
   person: { name: "user", style: "solid" },
   couple: { name: "user-group", style: "solid" },
   handshake: { name: "handshake", style: "regular" },
@@ -104,117 +170,402 @@ const ICON_MAP: Record<string, FAIconDef> = {
   family: { name: "people-group", style: "solid" },
   elder: { name: "person-cane", style: "solid" },
   wheelchair: { name: "wheelchair-move", style: "solid" },
-  wave: { name: "hand", style: "regular" },
+  baby: { name: "baby", style: "solid" },
   clap: { name: "hands-clapping", style: "solid" },
   thumbup: { name: "thumbs-up", style: "regular" },
-  hand: { name: "hand", style: "solid" },
-  eye: { name: "eye", style: "regular" },
-  facesmile: { name: "face-smile-beam", style: "regular" },
-  facebaby: { name: "baby", style: "solid" },
 };
 
-const ICON_IDS = Object.keys(ICON_MAP);
+// 8 cols × 3 rows = 24 per page — 5 pages = 120 colors
+const PAGES_CONFIG: { label: string; icon: FAIconDef; colors: string[] }[] = [
+  {
+    label: "Reds & Pinks",
+    icon: { name: "heart", style: "solid" },
+    colors: [
+      "#ff1744",
+      "#e03535",
+      "#f06060",
+      "#e8556a",
+      "#c62828",
+      "#b71c1c",
+      "#ff5252",
+      "#ff8a80",
+      "#e03580",
+      "#c42c6e",
+      "#f07090",
+      "#f44b6e",
+      "#ad1457",
+      "#880e4f",
+      "#f48fb1",
+      "#f8bbd0",
+      "#e91e63",
+      "#f06292",
+      "#ec407a",
+      "#ff4081",
+      "#ff80ab",
+      "#ff79b0",
+      "#fce4ec",
+      "#ff1a75",
+    ],
+  },
+  {
+    label: "Oranges & Yellows",
+    icon: { name: "sun", style: "solid" },
+    colors: [
+      "#ff6d00",
+      "#f0904a",
+      "#e87830",
+      "#ff7043",
+      "#e64a19",
+      "#bf360c",
+      "#ff9e80",
+      "#ffccbc",
+      "#ff8f00",
+      "#f5b042",
+      "#ffb300",
+      "#ffa000",
+      "#e65100",
+      "#ff6f00",
+      "#ffe082",
+      "#ffecb3",
+      "#ffd740",
+      "#ffc400",
+      "#ffab00",
+      "#e8c030",
+      "#d4a820",
+      "#f0c870",
+      "#fff9c4",
+      "#ffee58",
+    ],
+  },
+  {
+    label: "Greens & Teals",
+    icon: { name: "seedling", style: "solid" },
+    colors: [
+      "#00c853",
+      "#2ecc71",
+      "#00c896",
+      "#43a047",
+      "#2e7d32",
+      "#1b5e20",
+      "#69f0ae",
+      "#b9f6ca",
+      "#00bfa5",
+      "#00897b",
+      "#00695c",
+      "#004d40",
+      "#1de9b6",
+      "#64ffda",
+      "#a7ffeb",
+      "#e0f2f1",
+      "#48d18a",
+      "#3ab87a",
+      "#00e676",
+      "#66bb6a",
+      "#81c784",
+      "#a5d6a7",
+      "#c8e6c9",
+      "#f1f8e9",
+    ],
+  },
+  {
+    label: "Blues & Cyans",
+    icon: { name: "water", style: "solid" },
+    colors: [
+      "#2979ff",
+      "#3b5fe0",
+      "#1565c0",
+      "#0d47a1",
+      "#1a237e",
+      "#4a90d4",
+      "#5b7ff0",
+      "#82b1ff",
+      "#00bcd4",
+      "#38b8e8",
+      "#0097a7",
+      "#006064",
+      "#00e5ff",
+      "#40c4ff",
+      "#80d8ff",
+      "#e1f5fe",
+      "#26c6da",
+      "#4dd0e1",
+      "#80deea",
+      "#b2ebf2",
+      "#90caf9",
+      "#42a5f5",
+      "#1e88e5",
+      "#0288d1",
+    ],
+  },
+  {
+    label: "Purples & Neutrals",
+    icon: { name: "palette", style: "solid" },
+    colors: [
+      "#7c3aed",
+      "#9060d0",
+      "#a855f7",
+      "#c084fc",
+      "#b070e8",
+      "#6a1b9a",
+      "#4a148c",
+      "#ea80fc",
+      "#e040fb",
+      "#9c27b0",
+      "#ce93d8",
+      "#d4a0f8",
+      "#f3e5f5",
+      "#ab47bc",
+      "#8e24aa",
+      "#ba68c8",
+      "#607890",
+      "#546e7a",
+      "#78909c",
+      "#90a4ae",
+      "#7a8fa0",
+      "#80b0e8",
+      "#c49060",
+      "#8d6e63",
+    ],
+  },
+];
 
-// ─── Icon component ───────────────────────────────────────────────────────────
-function FAIconComponent({
-  color = "#555",
-  iconId,
+const ALL_COLORS = PAGES_CONFIG.flatMap((p) => p.colors);
+const PAGES = PAGES_CONFIG;
+
+const ICON_SECTIONS: { label: string; icon: FAIconDef; ids: string[] }[] = [
+  {
+    label: "Devotion",
+    icon: { name: "cross", style: "solid" },
+    ids: [
+      "cross",
+      "pray",
+      "biblia",
+      "church",
+      "heart",
+      "star",
+      "dove",
+      "crown",
+      "scroll",
+      "candle",
+      "shield",
+      "handsheart",
+      "ankh",
+      "menorah",
+    ],
+  },
+  {
+    label: "General",
+    icon: { name: "book", style: "solid" },
+    ids: [
+      "smiley",
+      "journals",
+      "home",
+      "bed",
+      "stove",
+      "books",
+      "phone",
+      "key",
+      "puzzle",
+      "balloon",
+      "bulb",
+      "flower",
+      "notepad",
+      "clock",
+      "bell",
+      "flag",
+    ],
+  },
+  {
+    label: "Health & Fitness",
+    icon: { name: "dumbbell", style: "solid" },
+    ids: [
+      "dumbbell",
+      "heartpulse",
+      "running",
+      "bicycle2",
+      "swimming",
+      "apple2",
+      "salad",
+      "pill",
+      "stethoscope",
+      "bed2",
+      "brain",
+      "spa",
+    ],
+  },
+  {
+    label: "Work & Study",
+    icon: { name: "briefcase", style: "solid" },
+    ids: [
+      "briefcase",
+      "laptop",
+      "chart",
+      "graduation",
+      "pencil",
+      "calculator",
+      "microscope",
+      "chalkboard",
+      "clipboard",
+      "code",
+    ],
+  },
+  {
+    label: "Travel",
+    icon: { name: "plane", style: "solid" },
+    ids: [
+      "pin",
+      "globe",
+      "plane",
+      "car",
+      "bike",
+      "ship",
+      "luggage",
+      "tent",
+      "signpost",
+      "camera",
+      "bus",
+      "train",
+      "moto",
+      "map",
+      "compass",
+    ],
+  },
+  {
+    label: "Food & Drink",
+    icon: { name: "pizza-slice", style: "solid" },
+    ids: [
+      "fork",
+      "spoon",
+      "coffee",
+      "drink",
+      "wine",
+      "wok",
+      "carrot",
+      "cake",
+      "popcorn",
+      "basket",
+      "pizza",
+      "burger",
+      "icecream",
+      "martini",
+    ],
+  },
+  {
+    label: "Nature & Weather",
+    icon: { name: "sun", style: "solid" },
+    ids: [
+      "mountain",
+      "sun",
+      "snow",
+      "bolt",
+      "moon",
+      "cloud",
+      "fire",
+      "rainbow",
+      "leaf",
+      "tree",
+      "volcano",
+      "wind",
+      "water",
+      "seedling",
+    ],
+  },
+  {
+    label: "Animals",
+    icon: { name: "paw", style: "solid" },
+    ids: ["dog", "cat", "bird", "fish", "horse", "frog", "spider", "worm"],
+  },
+  {
+    label: "Hobbies & Arts",
+    icon: { name: "palette", style: "solid" },
+    ids: [
+      "palette",
+      "music",
+      "guitar",
+      "film",
+      "gamepad",
+      "chess",
+      "dice",
+      "book2",
+      "theater",
+      "microphone",
+      "headphones",
+      "trophy",
+    ],
+  },
+  {
+    label: "Finance",
+    icon: { name: "coins", style: "solid" },
+    ids: [
+      "money",
+      "coins",
+      "piggy",
+      "wallet",
+      "creditcard",
+      "chartbar",
+      "building",
+      "handmoney",
+    ],
+  },
+  {
+    label: "Family & People",
+    icon: { name: "people-group", style: "solid" },
+    ids: [
+      "person",
+      "couple",
+      "handshake",
+      "pregnant",
+      "family",
+      "elder",
+      "wheelchair",
+      "baby",
+      "clap",
+      "thumbup",
+    ],
+  },
+];
+
+// ─── Section Label Component ──────────────────────────────────────────────────
+function SectionLabel({
+  icon,
+  label,
+  style: textStyle,
 }: {
-  color?: string;
-  iconId: string;
-}) {
-  const def = ICON_MAP[iconId];
-  if (!def) return null;
-  return (
-    <FontAwesome6
-      name={def.name}
-      size={20}
-      color={color}
-      iconStyle={def.style ?? "solid"}
-    />
-  );
-}
-
-const ICONS: { id: string; component: React.FC<{ color?: string }> }[] =
-  ICON_IDS.map((id) => ({
-    id,
-    component: ({ color }: { color?: string }) => (
-      <FAIconComponent color={color} iconId={id} />
-    ),
-  }));
-
-// ─── Rainbow Circle (SVG) ─────────────────────────────────────────────────────
-function RainbowCircle({
-  size = 32,
-  selected = false,
-}: {
-  size?: number;
-  selected?: boolean;
+  icon: FAIconDef;
+  label: string;
+  style?: object;
 }) {
   return (
-    <View style={{ width: size, height: size }}>
-      <Svg width={size} height={size} viewBox="0 0 32 32">
-        <Defs>
-          <LinearGradient id="rainbow" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0%" stopColor="#f87171" />
-            <Stop offset="25%" stopColor="#fbbf24" />
-            <Stop offset="50%" stopColor="#34d399" />
-            <Stop offset="75%" stopColor="#60a5fa" />
-            <Stop offset="100%" stopColor="#c084fc" />
-          </LinearGradient>
-        </Defs>
-        <Circle
-          cx="16"
-          cy="16"
-          r="14"
-          fill="url(#rainbow)"
-          stroke={selected ? "#fff" : "transparent"}
-          strokeWidth={selected ? "2.5" : "0"}
-        />
-      </Svg>
+    <View style={sectionLabelStyles.row}>
+      <FontAwesome6
+        name={icon.name}
+        size={11}
+        color="#555"
+        iconStyle={icon.style ?? "solid"}
+      />
+      <Text style={[sectionLabelStyles.text, textStyle]}>
+        {label.toUpperCase()}
+      </Text>
     </View>
   );
 }
 
-// ─── Journal Cover Preview ────────────────────────────────────────────────────
-function JournalCoverPreview({
-  color,
-  iconId,
-}: {
-  color: string;
-  iconId: string;
-}) {
-  const bgColor = color === "rainbow" ? "#c084fc22" : color + "22";
-  const iconColor = color === "rainbow" ? "#c084fc" : color;
-  const def = ICON_MAP[iconId];
-
-  return (
-    <View style={[previewStyles.wrapper, { backgroundColor: bgColor }]}>
-      {def ? (
-        <FontAwesome6
-          name={def.name}
-          size={36}
-          color={iconColor}
-          iconStyle={def.style ?? "solid"}
-        />
-      ) : (
-        <FontAwesome6 name="book" size={36} color={iconColor} />
-      )}
-    </View>
-  );
-}
-
-const previewStyles = StyleSheet.create({
-  wrapper: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+const sectionLabelStyles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 6,
+    marginBottom: 10,
+  },
+  text: {
+    color: "#444",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1,
   },
 });
 
-// ─── Exported JournalIcon — use this in journal cards / menus ─────────────────
+// ─── Exports ──────────────────────────────────────────────────────────────────
 export function JournalIcon({
   iconId,
   color = "#888",
@@ -245,8 +596,156 @@ export function JournalIcon({
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Journal Cover Preview ────────────────────────────────────────────────────
+function JournalCoverPreview({
+  color,
+  iconId,
+}: {
+  color: string;
+  iconId: string;
+}) {
+  const def = ICON_MAP[iconId];
+  return (
+    <View style={[previewStyles.wrapper, { backgroundColor: color + "22" }]}>
+      {def ? (
+        <FontAwesome6
+          name={def.name}
+          size={36}
+          color={color}
+          iconStyle={def.style ?? "solid"}
+        />
+      ) : (
+        <FontAwesome6 name="book" size={36} color={color} />
+      )}
+    </View>
+  );
+}
 
+const previewStyles = StyleSheet.create({
+  wrapper: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
+
+// ─── Color Picker — Paged Grid ────────────────────────────────────────────────
+function ColorPicker({
+  selected,
+  onSelect,
+}: {
+  selected: string;
+  onSelect: (c: string) => void;
+}) {
+  const [pageIndex, setPageIndex] = useState(() => {
+    const p = PAGES.findIndex((pg) => pg.colors.includes(selected));
+    return p >= 0 ? p : 0;
+  });
+  const scrollRef = useRef<ScrollView>(null);
+
+  const goToPage = (i: number) => {
+    scrollRef.current?.scrollTo({ x: i * PAGE_WIDTH, animated: true });
+    setPageIndex(i);
+  };
+
+  return (
+    <View style={cpStyles.wrap}>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        scrollEventThrottle={16}
+        showsHorizontalScrollIndicator={false}
+        decelerationRate="fast"
+        contentOffset={{ x: pageIndex * PAGE_WIDTH, y: 0 }}
+        onScroll={(e) => {
+          const idx = Math.round(e.nativeEvent.contentOffset.x / PAGE_WIDTH);
+          if (idx !== pageIndex) setPageIndex(idx);
+        }}
+        onMomentumScrollEnd={(e) => {
+          const idx = Math.round(e.nativeEvent.contentOffset.x / PAGE_WIDTH);
+          setPageIndex(idx);
+        }}
+      >
+        {PAGES.map((page, pi) => {
+          const rows: string[][] = [];
+          for (let i = 0; i < page.colors.length; i += COLS) {
+            rows.push(page.colors.slice(i, i + COLS));
+          }
+          return (
+            <View key={pi} style={{ width: PAGE_WIDTH }}>
+              <SectionLabel icon={page.icon} label={page.label} />
+              {rows.map((row, ri) => (
+                <View key={ri} style={cpStyles.row}>
+                  {row.map((c) => {
+                    const isSelected = selected === c;
+                    return (
+                      <Pressable key={c} onPress={() => onSelect(c)}>
+                        <View
+                          style={[
+                            cpStyles.swatch,
+                            {
+                              backgroundColor: c,
+                              width: SWATCH_SIZE,
+                              height: SWATCH_SIZE,
+                              borderRadius: SWATCH_SIZE / 2,
+                            },
+                            isSelected && cpStyles.swatchSelected,
+                          ]}
+                        >
+                          {isSelected && (
+                            <FontAwesome6 name="check" size={11} color="#fff" />
+                          )}
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+          );
+        })}
+      </ScrollView>
+
+      {/* Page dots */}
+      <View style={cpStyles.dots}>
+        {PAGES.map((_, i) => (
+          <Pressable key={i} onPress={() => goToPage(i)} hitSlop={8}>
+            <View
+              style={[cpStyles.dot, i === pageIndex && cpStyles.dotActive]}
+            />
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const cpStyles = StyleSheet.create({
+  wrap: { marginBottom: 24 },
+  row: { flexDirection: "row", gap: SWATCH_GAP, marginBottom: SWATCH_GAP },
+  swatch: { alignItems: "center", justifyContent: "center" },
+  swatchSelected: {
+    borderWidth: 2.5,
+    borderColor: "#fff",
+    shadowColor: "#000",
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  dots: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 8,
+  },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#2a2a2a" },
+  dotActive: { backgroundColor: "#c084fc", width: 18 },
+});
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 type Props = {
   visible: boolean;
   onClose: () => void;
@@ -261,7 +760,7 @@ export default function CreateJournalModal({
   onClose,
   onSave,
   initialName = "",
-  initialColor = "#80b0e8",
+  initialColor = "#4a90d4",
   initialIconId = "journals",
 }: Props) {
   const [name, setName] = useState(initialName);
@@ -276,9 +775,8 @@ export default function CreateJournalModal({
     }
   }, [visible]);
 
-  const handleSave = () => {
+  const handleSave = () =>
     onSave({ name, color: selectedColor, iconId: selectedIconId });
-  };
 
   return (
     <Modal
@@ -288,27 +786,17 @@ export default function CreateJournalModal({
       onRequestClose={onClose}
     >
       <View style={styles.container}>
-        {/* Top buttons */}
+        {/* Top bar */}
         <View style={styles.topBar}>
           <Pressable onPress={onClose} style={styles.topBtn} hitSlop={16}>
-            <Svg width={16} height={16} viewBox="0 0 16 16">
-              <Path
-                d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z"
-                fill="#888"
-              />
-            </Svg>
+            <FontAwesome6 name="xmark" size={14} color="#888" />
           </Pressable>
           <Pressable
             onPress={handleSave}
             style={styles.topBtnRight}
             hitSlop={16}
           >
-            <Svg width={18} height={18} viewBox="0 0 16 16">
-              <Path
-                d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425z"
-                fill="#c084fc"
-              />
-            </Svg>
+            <FontAwesome6 name="check" size={14} color="#c084fc" />
           </Pressable>
         </View>
 
@@ -334,74 +822,49 @@ export default function CreateJournalModal({
           />
 
           {/* Color picker */}
-          <View style={styles.colorGrid}>
-            {COLORS.map((c) => {
-              const isSelected = selectedColor === c;
-              if (c === "rainbow") {
-                return (
-                  <Pressable
-                    key="rainbow"
-                    onPress={() => setSelectedColor("rainbow")}
-                    style={styles.colorBtnWrapper}
-                  >
-                    <View
+          <ColorPicker selected={selectedColor} onSelect={setSelectedColor} />
+
+          {/* Icon sections */}
+          {ICON_SECTIONS.map((section) => (
+            <View key={section.label} style={styles.iconSection}>
+              <SectionLabel icon={section.icon} label={section.label} />
+              <View style={styles.iconGrid}>
+                {section.ids.map((id) => {
+                  const def = ICON_MAP[id];
+                  if (!def) return null;
+                  const isSelected = selectedIconId === id;
+                  return (
+                    <Pressable
+                      key={id}
+                      onPress={() => setSelectedIconId(id)}
                       style={[
-                        styles.colorRing,
-                        isSelected && { borderColor: "#aaa", borderWidth: 2.5 },
+                        styles.iconBtn,
+                        {
+                          width: ICON_SIZE,
+                          height: ICON_SIZE,
+                          borderRadius: ICON_SIZE / 2,
+                          backgroundColor: isSelected
+                            ? selectedColor + "20"
+                            : "#1e1e1e",
+                          borderWidth: isSelected ? 2 : 0,
+                          borderColor: isSelected
+                            ? selectedColor
+                            : "transparent",
+                        },
                       ]}
                     >
-                      <RainbowCircle size={32} selected={isSelected} />
-                    </View>
-                  </Pressable>
-                );
-              }
-              return (
-                <Pressable
-                  key={c}
-                  onPress={() => setSelectedColor(c)}
-                  style={styles.colorBtnWrapper}
-                >
-                  <View
-                    style={[
-                      styles.colorBtn,
-                      { backgroundColor: c },
-                      isSelected && styles.colorSelected,
-                    ]}
-                  />
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {/* Icon grid */}
-          <View style={styles.iconGrid}>
-            {ICONS.map(({ id, component: IconComp }) => {
-              const isSelected = selectedIconId === id;
-              const accentColor =
-                selectedColor === "rainbow" ? "#c084fc" : selectedColor;
-              return (
-                <Pressable
-                  key={id}
-                  onPress={() => setSelectedIconId(id)}
-                  style={[
-                    styles.iconBtn,
-                    {
-                      width: ICON_SIZE,
-                      height: ICON_SIZE,
-                      borderRadius: ICON_SIZE / 2,
-                      backgroundColor: isSelected
-                        ? accentColor + "18"
-                        : "#1e1e1e",
-                      borderWidth: isSelected ? 2 : 0,
-                      borderColor: isSelected ? accentColor : "transparent",
-                    },
-                  ]}
-                >
-                  <IconComp color={isSelected ? accentColor : "#555"} />
-                </Pressable>
-              );
-            })}
-          </View>
+                      <FontAwesome6
+                        name={def.name}
+                        size={20}
+                        color={isSelected ? selectedColor : "#555"}
+                        iconStyle={def.style ?? "solid"}
+                      />
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ))}
         </ScrollView>
       </View>
     </Modal>
@@ -410,10 +873,7 @@ export default function CreateJournalModal({
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0f0f0f",
-  },
+  container: { flex: 1, backgroundColor: "#0f0f0f" },
   topBar: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -442,15 +902,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 60,
-  },
-  previewRow: {
-    alignItems: "center",
-    marginTop: 8,
-    marginBottom: 24,
-  },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 60 },
+  previewRow: { alignItems: "center", marginTop: 8, marginBottom: 24 },
   nameInput: {
     backgroundColor: "#1a1a1a",
     borderRadius: 14,
@@ -458,46 +911,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     fontSize: 16,
     color: "#f0f0f0",
-    marginBottom: 28,
+    marginBottom: 24,
     borderWidth: 1,
     borderColor: "#2a2a2a",
   },
-  colorGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    justifyContent: "flex-start",
-    marginBottom: 28,
-  },
-  colorBtnWrapper: { padding: 2 },
-  colorBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-  },
-  colorRing: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  colorSelected: {
-    borderWidth: 2.5,
-    borderColor: "#fff",
-    shadowColor: "#000",
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 0 },
-  },
-  iconGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  iconBtn: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  iconSection: { marginBottom: 20 },
+  iconGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  iconBtn: { alignItems: "center", justifyContent: "center" },
 });

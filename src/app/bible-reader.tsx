@@ -1,6 +1,6 @@
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -8,10 +8,13 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { JournalIcon } from "../components/create-journal-modal";
+import CreateJournalModal, {
+  JournalIcon,
+} from "../components/create-journal-modal";
 import { Storage, STORAGE_KEYS } from "../storage";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -37,76 +40,81 @@ type Journal = {
   iconId?: string;
 };
 
+type Testament = "OT" | "NT";
+
 // ─── Bible Books List ─────────────────────────────────────────────────────────
 
-const BIBLE_BOOKS: { name: string; chapters: number }[] = [
-  { name: "Genesis", chapters: 50 },
-  { name: "Exodus", chapters: 40 },
-  { name: "Leviticus", chapters: 27 },
-  { name: "Numbers", chapters: 36 },
-  { name: "Deuteronomy", chapters: 34 },
-  { name: "Joshua", chapters: 24 },
-  { name: "Judges", chapters: 21 },
-  { name: "Ruth", chapters: 4 },
-  { name: "1 Samuel", chapters: 31 },
-  { name: "2 Samuel", chapters: 24 },
-  { name: "1 Kings", chapters: 22 },
-  { name: "2 Kings", chapters: 25 },
-  { name: "1 Chronicles", chapters: 29 },
-  { name: "2 Chronicles", chapters: 36 },
-  { name: "Ezra", chapters: 10 },
-  { name: "Nehemiah", chapters: 13 },
-  { name: "Esther", chapters: 10 },
-  { name: "Job", chapters: 42 },
-  { name: "Psalms", chapters: 150 },
-  { name: "Proverbs", chapters: 31 },
-  { name: "Ecclesiastes", chapters: 12 },
-  { name: "Song of Solomon", chapters: 8 },
-  { name: "Isaiah", chapters: 66 },
-  { name: "Jeremiah", chapters: 52 },
-  { name: "Lamentations", chapters: 5 },
-  { name: "Ezekiel", chapters: 48 },
-  { name: "Daniel", chapters: 12 },
-  { name: "Hosea", chapters: 14 },
-  { name: "Joel", chapters: 3 },
-  { name: "Amos", chapters: 9 },
-  { name: "Obadiah", chapters: 1 },
-  { name: "Jonah", chapters: 4 },
-  { name: "Micah", chapters: 7 },
-  { name: "Nahum", chapters: 3 },
-  { name: "Habakkuk", chapters: 3 },
-  { name: "Zephaniah", chapters: 3 },
-  { name: "Haggai", chapters: 2 },
-  { name: "Zechariah", chapters: 14 },
-  { name: "Malachi", chapters: 4 },
-  { name: "Matthew", chapters: 28 },
-  { name: "Mark", chapters: 16 },
-  { name: "Luke", chapters: 24 },
-  { name: "John", chapters: 21 },
-  { name: "Acts", chapters: 28 },
-  { name: "Romans", chapters: 16 },
-  { name: "1 Corinthians", chapters: 16 },
-  { name: "2 Corinthians", chapters: 13 },
-  { name: "Galatians", chapters: 6 },
-  { name: "Ephesians", chapters: 6 },
-  { name: "Philippians", chapters: 4 },
-  { name: "Colossians", chapters: 4 },
-  { name: "1 Thessalonians", chapters: 5 },
-  { name: "2 Thessalonians", chapters: 3 },
-  { name: "1 Timothy", chapters: 6 },
-  { name: "2 Timothy", chapters: 4 },
-  { name: "Titus", chapters: 3 },
-  { name: "Philemon", chapters: 1 },
-  { name: "Hebrews", chapters: 13 },
-  { name: "James", chapters: 5 },
-  { name: "1 Peter", chapters: 5 },
-  { name: "2 Peter", chapters: 3 },
-  { name: "1 John", chapters: 5 },
-  { name: "2 John", chapters: 1 },
-  { name: "3 John", chapters: 1 },
-  { name: "Jude", chapters: 1 },
-  { name: "Revelation", chapters: 22 },
-];
+const BIBLE_BOOKS: { name: string; chapters: number; testament: Testament }[] =
+  [
+    // Old Testament
+    { name: "Genesis", chapters: 50, testament: "OT" },
+    { name: "Exodus", chapters: 40, testament: "OT" },
+    { name: "Leviticus", chapters: 27, testament: "OT" },
+    { name: "Numbers", chapters: 36, testament: "OT" },
+    { name: "Deuteronomy", chapters: 34, testament: "OT" },
+    { name: "Joshua", chapters: 24, testament: "OT" },
+    { name: "Judges", chapters: 21, testament: "OT" },
+    { name: "Ruth", chapters: 4, testament: "OT" },
+    { name: "1 Samuel", chapters: 31, testament: "OT" },
+    { name: "2 Samuel", chapters: 24, testament: "OT" },
+    { name: "1 Kings", chapters: 22, testament: "OT" },
+    { name: "2 Kings", chapters: 25, testament: "OT" },
+    { name: "1 Chronicles", chapters: 29, testament: "OT" },
+    { name: "2 Chronicles", chapters: 36, testament: "OT" },
+    { name: "Ezra", chapters: 10, testament: "OT" },
+    { name: "Nehemiah", chapters: 13, testament: "OT" },
+    { name: "Esther", chapters: 10, testament: "OT" },
+    { name: "Job", chapters: 42, testament: "OT" },
+    { name: "Psalms", chapters: 150, testament: "OT" },
+    { name: "Proverbs", chapters: 31, testament: "OT" },
+    { name: "Ecclesiastes", chapters: 12, testament: "OT" },
+    { name: "Song of Solomon", chapters: 8, testament: "OT" },
+    { name: "Isaiah", chapters: 66, testament: "OT" },
+    { name: "Jeremiah", chapters: 52, testament: "OT" },
+    { name: "Lamentations", chapters: 5, testament: "OT" },
+    { name: "Ezekiel", chapters: 48, testament: "OT" },
+    { name: "Daniel", chapters: 12, testament: "OT" },
+    { name: "Hosea", chapters: 14, testament: "OT" },
+    { name: "Joel", chapters: 3, testament: "OT" },
+    { name: "Amos", chapters: 9, testament: "OT" },
+    { name: "Obadiah", chapters: 1, testament: "OT" },
+    { name: "Jonah", chapters: 4, testament: "OT" },
+    { name: "Micah", chapters: 7, testament: "OT" },
+    { name: "Nahum", chapters: 3, testament: "OT" },
+    { name: "Habakkuk", chapters: 3, testament: "OT" },
+    { name: "Zephaniah", chapters: 3, testament: "OT" },
+    { name: "Haggai", chapters: 2, testament: "OT" },
+    { name: "Zechariah", chapters: 14, testament: "OT" },
+    { name: "Malachi", chapters: 4, testament: "OT" },
+    // New Testament
+    { name: "Matthew", chapters: 28, testament: "NT" },
+    { name: "Mark", chapters: 16, testament: "NT" },
+    { name: "Luke", chapters: 24, testament: "NT" },
+    { name: "John", chapters: 21, testament: "NT" },
+    { name: "Acts", chapters: 28, testament: "NT" },
+    { name: "Romans", chapters: 16, testament: "NT" },
+    { name: "1 Corinthians", chapters: 16, testament: "NT" },
+    { name: "2 Corinthians", chapters: 13, testament: "NT" },
+    { name: "Galatians", chapters: 6, testament: "NT" },
+    { name: "Ephesians", chapters: 6, testament: "NT" },
+    { name: "Philippians", chapters: 4, testament: "NT" },
+    { name: "Colossians", chapters: 4, testament: "NT" },
+    { name: "1 Thessalonians", chapters: 5, testament: "NT" },
+    { name: "2 Thessalonians", chapters: 3, testament: "NT" },
+    { name: "1 Timothy", chapters: 6, testament: "NT" },
+    { name: "2 Timothy", chapters: 4, testament: "NT" },
+    { name: "Titus", chapters: 3, testament: "NT" },
+    { name: "Philemon", chapters: 1, testament: "NT" },
+    { name: "Hebrews", chapters: 13, testament: "NT" },
+    { name: "James", chapters: 5, testament: "NT" },
+    { name: "1 Peter", chapters: 5, testament: "NT" },
+    { name: "2 Peter", chapters: 3, testament: "NT" },
+    { name: "1 John", chapters: 5, testament: "NT" },
+    { name: "2 John", chapters: 1, testament: "NT" },
+    { name: "3 John", chapters: 1, testament: "NT" },
+    { name: "Jude", chapters: 1, testament: "NT" },
+    { name: "Revelation", chapters: 22, testament: "NT" },
+  ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -135,6 +143,323 @@ async function fetchChapter(
   }
 }
 
+// ─── Book Picker Modal ────────────────────────────────────────────────────────
+
+type BookPickerProps = {
+  visible: boolean;
+  selectedBook: string;
+  onSelect: (book: string) => void;
+  onClose: () => void;
+};
+
+function BookPickerModal({
+  visible,
+  selectedBook,
+  onSelect,
+  onClose,
+}: BookPickerProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<Testament>(
+    () => BIBLE_BOOKS.find((b) => b.name === selectedBook)?.testament ?? "NT",
+  );
+  const flatListRef = useRef<FlatList>(null);
+  const searchRef = useRef<TextInput>(null);
+
+  // Reset state when modal opens
+  useEffect(() => {
+    if (visible) {
+      setSearchQuery("");
+      const tab =
+        BIBLE_BOOKS.find((b) => b.name === selectedBook)?.testament ?? "NT";
+      setActiveTab(tab);
+    }
+  }, [visible, selectedBook]);
+
+  const isSearching = searchQuery.trim().length > 0;
+
+  // Filter logic: search overrides tab
+  const filteredBooks = isSearching
+    ? BIBLE_BOOKS.filter((b) =>
+        b.name.toLowerCase().includes(searchQuery.toLowerCase()),
+      )
+    : BIBLE_BOOKS.filter((b) => b.testament === activeTab);
+
+  // Scroll to selected book when tab changes (not searching)
+  useEffect(() => {
+    if (isSearching || !visible) return;
+    const idx = filteredBooks.findIndex((b) => b.name === selectedBook);
+    if (idx >= 0) {
+      // Small delay to let FlatList settle
+      setTimeout(() => {
+        flatListRef.current?.scrollToIndex({
+          index: idx,
+          animated: true,
+          viewPosition: 0.3,
+        });
+      }, 100);
+    }
+  }, [activeTab, visible]);
+
+  return (
+    <Modal
+      transparent
+      visible={visible}
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable style={pickerStyles.overlay} onPress={onClose}>
+        <Pressable
+          style={pickerStyles.sheet}
+          onPress={(e) => e.stopPropagation()}
+        >
+          {/* Drag handle */}
+          <View style={pickerStyles.handle} />
+
+          {/* Header */}
+          <View style={pickerStyles.header}>
+            <Text style={pickerStyles.title}>Select Book</Text>
+            <Pressable onPress={onClose} style={pickerStyles.closeBtn}>
+              <FontAwesome6 name="xmark" size={14} color="#555" />
+            </Pressable>
+          </View>
+
+          {/* Search Bar */}
+          <View style={pickerStyles.searchWrapper}>
+            <FontAwesome6
+              name="magnifying-glass"
+              size={13}
+              color="#555"
+              style={pickerStyles.searchIcon}
+            />
+            <TextInput
+              ref={searchRef}
+              style={pickerStyles.searchInput}
+              placeholder="Search book..."
+              placeholderTextColor="#444"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+              autoCorrect={false}
+              autoCapitalize="words"
+            />
+            {searchQuery.length > 0 && (
+              <Pressable
+                onPress={() => setSearchQuery("")}
+                style={pickerStyles.searchClear}
+              >
+                <FontAwesome6 name="circle-xmark" size={14} color="#444" />
+              </Pressable>
+            )}
+          </View>
+
+          {/* Testament Tabs — hidden when searching */}
+          {!isSearching && (
+            <View style={pickerStyles.tabs}>
+              {(["OT", "NT"] as Testament[]).map((tab) => (
+                <Pressable
+                  key={tab}
+                  onPress={() => setActiveTab(tab)}
+                  style={[
+                    pickerStyles.tab,
+                    activeTab === tab && pickerStyles.tabActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      pickerStyles.tabText,
+                      activeTab === tab && pickerStyles.tabTextActive,
+                    ]}
+                  >
+                    {tab === "OT" ? "Old Testament" : "New Testament"}
+                  </Text>
+                  <Text
+                    style={[
+                      pickerStyles.tabCount,
+                      activeTab === tab && pickerStyles.tabCountActive,
+                    ]}
+                  >
+                    {BIBLE_BOOKS.filter((b) => b.testament === tab).length}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
+          {/* Search result label */}
+          {isSearching && (
+            <Text style={pickerStyles.searchResultLabel}>
+              {filteredBooks.length === 0
+                ? "No results"
+                : `${filteredBooks.length} result${filteredBooks.length !== 1 ? "s" : ""}`}
+            </Text>
+          )}
+
+          {/* Book List */}
+          <FlatList
+            ref={flatListRef}
+            data={filteredBooks}
+            keyExtractor={(b) => b.name}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            onScrollToIndexFailed={() => {}}
+            contentContainerStyle={{ paddingBottom: 32 }}
+            renderItem={({ item }) => {
+              const isSelected = item.name === selectedBook;
+              return (
+                <Pressable
+                  onPress={() => onSelect(item.name)}
+                  style={({ pressed }) => [
+                    pickerStyles.item,
+                    isSelected && pickerStyles.itemSelected,
+                    pressed && !isSelected && pickerStyles.itemPressed,
+                  ]}
+                >
+                  <View style={pickerStyles.itemContent}>
+                    <Text
+                      style={[
+                        pickerStyles.itemText,
+                        isSelected && pickerStyles.itemTextSelected,
+                      ]}
+                    >
+                      {item.name}
+                    </Text>
+                    <Text
+                      style={[
+                        pickerStyles.itemChapters,
+                        isSelected && pickerStyles.itemChaptersSelected,
+                      ]}
+                    >
+                      {item.chapters} ch
+                    </Text>
+                  </View>
+                  {isSelected && (
+                    <FontAwesome6 name="check" size={12} color="#c084fc" />
+                  )}
+                </Pressable>
+              );
+            }}
+          />
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const pickerStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    backgroundColor: "#111",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: "82%",
+    borderTopWidth: 1,
+    borderColor: "#222",
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    backgroundColor: "#2a2a2a",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  title: { color: "#fff", fontSize: 17, fontWeight: "700" },
+  closeBtn: { padding: 4 },
+
+  // Search
+  searchWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1a1a1a",
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "#2a2a2a",
+  },
+  searchIcon: { marginRight: 8 },
+  searchInput: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 15,
+    paddingVertical: 11,
+    fontWeight: "400",
+  },
+  searchClear: { padding: 4 },
+  searchResultLabel: {
+    color: "#444",
+    fontSize: 12,
+    paddingHorizontal: 20,
+    marginBottom: 8,
+  },
+
+  // Tabs
+  tabs: {
+    flexDirection: "row",
+    marginHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: "#1a1a1a",
+    borderRadius: 12,
+    padding: 3,
+    gap: 3,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 9,
+    borderRadius: 10,
+    gap: 6,
+  },
+  tabActive: { backgroundColor: "#1e0a3c" },
+  tabText: { color: "#555", fontSize: 13, fontWeight: "600" },
+  tabTextActive: { color: "#c084fc" },
+  tabCount: {
+    color: "#333",
+    fontSize: 11,
+    fontWeight: "600",
+    backgroundColor: "#222",
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  tabCountActive: {
+    color: "#9b59d0",
+    backgroundColor: "#2d1050",
+  },
+
+  // List Items
+  item: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#161616",
+  },
+  itemSelected: { backgroundColor: "#140824" },
+  itemPressed: { backgroundColor: "#1a1a1a" },
+  itemContent: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
+  itemText: { color: "#ccc", fontSize: 15, flex: 1 },
+  itemTextSelected: { color: "#c084fc", fontWeight: "600" },
+  itemChapters: { color: "#2e2e2e", fontSize: 12 },
+  itemChaptersSelected: { color: "#6a3a9a" },
+});
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function BibleReaderScreen() {
@@ -144,6 +469,8 @@ export default function BibleReaderScreen() {
 
   const initialBook = asString(params.book, "John");
   const initialChapter = parseInt(asString(params.chapter, "1"), 10);
+  // Optional: highlight + scroll to a specific verse (e.g. from daily verse)
+  const highlightVerse = parseInt(asString(params.verse, "0"), 10);
 
   const [selectedBook, setSelectedBook] = useState(initialBook);
   const [currentChapter, setCurrentChapter] = useState(initialChapter);
@@ -152,9 +479,14 @@ export default function BibleReaderScreen() {
   const [showBookPicker, setShowBookPicker] = useState(false);
   const [showChapterPicker, setShowChapterPicker] = useState(false);
 
+  const versesListRef = useRef<FlatList>(null);
+
   // Verse tap — journal picker
   const [showJournalPicker, setShowJournalPicker] = useState(false);
   const [journals, setJournals] = useState<Journal[]>([]);
+
+  // Inline create journal from picker
+  const [showCreateJournal, setShowCreateJournal] = useState(false);
 
   // Multi-select mode
   const [selectionMode, setSelectionMode] = useState(false);
@@ -176,6 +508,29 @@ export default function BibleReaderScreen() {
   const loadJournals = async () => {
     const stored = await Storage.getItem(STORAGE_KEYS.journals);
     setJournals(stored ? JSON.parse(stored) : []);
+  };
+
+  const saveNewJournalFromPicker = async (data: {
+    name: string;
+    color: string;
+    iconId: string;
+  }) => {
+    const trimmed = data.name.trim();
+    if (!trimmed) return;
+    const newJournal = {
+      id: Date.now().toString(),
+      name: trimmed,
+      color: data.color,
+      emoji: data.iconId,
+      iconId: data.iconId,
+      createdAt: new Date().toISOString(),
+    };
+    const updated = [...journals, newJournal];
+    await Storage.setItem(STORAGE_KEYS.journals, JSON.stringify(updated));
+    setJournals(updated);
+    setShowCreateJournal(false);
+    // Re-open journal picker so user can immediately pick the new journal
+    setTimeout(() => setShowJournalPicker(true), 350);
   };
 
   const handleVerseTap = (verse: Verse) => {
@@ -243,6 +598,20 @@ export default function BibleReaderScreen() {
     const data = await fetchChapter(selectedBook, currentChapter);
     setChapterData(data);
     setLoading(false);
+
+    // Scroll to highlighted verse once list renders
+    if (highlightVerse > 0 && data && data.verses.length > 0) {
+      const idx = data.verses.findIndex((v) => v.verse === highlightVerse);
+      if (idx >= 0) {
+        setTimeout(() => {
+          versesListRef.current?.scrollToIndex({
+            index: idx,
+            animated: true,
+            viewPosition: 0.25,
+          });
+        }, 350);
+      }
+    }
   };
 
   const goNextChapter = () => {
@@ -300,6 +669,7 @@ export default function BibleReaderScreen() {
         </View>
       ) : chapterData ? (
         <FlatList
+          ref={versesListRef}
           data={chapterData.verses}
           keyExtractor={(item) => `${item.verse}`}
           contentContainerStyle={{
@@ -308,6 +678,17 @@ export default function BibleReaderScreen() {
             paddingBottom: insets.bottom + 120,
           }}
           showsVerticalScrollIndicator={false}
+          onScrollToIndexFailed={(info) => {
+            // Fallback: scroll to end then retry
+            versesListRef.current?.scrollToEnd({ animated: false });
+            setTimeout(() => {
+              versesListRef.current?.scrollToIndex({
+                index: info.index,
+                animated: true,
+                viewPosition: 0.25,
+              });
+            }, 100);
+          }}
           ListHeaderComponent={
             <Text style={styles.chapterTitle}>
               {selectedBook} {currentChapter}
@@ -317,6 +698,8 @@ export default function BibleReaderScreen() {
             const isSelected = selectedVerses.some(
               (v) => v.verse === item.verse,
             );
+            const isDailyVerse =
+              highlightVerse > 0 && item.verse === highlightVerse;
             return (
               <Pressable
                 onPress={() => handleVerseTap(item)}
@@ -326,8 +709,17 @@ export default function BibleReaderScreen() {
                   styles.verseRow,
                   pressed && styles.verseRowPressed,
                   isSelected && styles.verseRowSelected,
+                  isDailyVerse && styles.verseRowHighlighted,
                 ]}
               >
+                {isDailyVerse && !isSelected && (
+                  <FontAwesome6
+                    name="star"
+                    size={10}
+                    color="#f5c842"
+                    style={{ marginRight: 2, marginTop: 4 }}
+                  />
+                )}
                 {isSelected && (
                   <FontAwesome6
                     name="check"
@@ -340,12 +732,19 @@ export default function BibleReaderScreen() {
                   style={[
                     styles.verseNumber,
                     isSelected && { color: "#e040fb" },
+                    isDailyVerse &&
+                      !isSelected &&
+                      styles.verseNumberHighlighted,
                   ]}
                 >
                   {item.verse}
                 </Text>
                 <Text
-                  style={[styles.verseText, isSelected && { color: "#fff" }]}
+                  style={[
+                    styles.verseText,
+                    isSelected && { color: "#fff" },
+                    isDailyVerse && !isSelected && styles.verseTextHighlighted,
+                  ]}
                 >
                   {item.text.trim()}
                 </Text>
@@ -433,44 +832,20 @@ export default function BibleReaderScreen() {
         </Pressable>
       </View>
 
-      {/* ── Book Picker Modal ── */}
-      {showBookPicker && (
-        <View style={styles.pickerOverlay}>
-          <View style={styles.pickerBox}>
-            <View style={styles.pickerHeader}>
-              <Text style={styles.pickerTitle}>Select Book</Text>
-              <Pressable onPress={() => setShowBookPicker(false)}>
-                <FontAwesome6 name="xmark" size={14} color="#555" />
-              </Pressable>
-            </View>
-            <FlatList
-              data={BIBLE_BOOKS}
-              keyExtractor={(b) => b.name}
-              showsVerticalScrollIndicator={false}
-              renderItem={({ item }) => (
-                <Pressable
-                  onPress={() => selectBook(item.name)}
-                  style={({ pressed }) => [
-                    styles.pickerItem,
-                    item.name === selectedBook && styles.pickerItemSelected,
-                    pressed && { backgroundColor: "#1a1a1a" },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.pickerItemText,
-                      item.name === selectedBook &&
-                        styles.pickerItemTextSelected,
-                    ]}
-                  >
-                    {item.name}
-                  </Text>
-                </Pressable>
-              )}
-            />
-          </View>
-        </View>
-      )}
+      {/* ── Inline Create Journal (from picker) ── */}
+      <CreateJournalModal
+        visible={showCreateJournal}
+        onClose={() => setShowCreateJournal(false)}
+        onSave={saveNewJournalFromPicker}
+      />
+
+      {/* ── Book Picker Modal (new) ── */}
+      <BookPickerModal
+        visible={showBookPicker}
+        selectedBook={selectedBook}
+        onSelect={selectBook}
+        onClose={() => setShowBookPicker(false)}
+      />
 
       {/* ── Chapter Picker Modal ── */}
       {showChapterPicker && (
@@ -566,9 +941,32 @@ export default function BibleReaderScreen() {
 
               {journals.length === 0 ? (
                 <View style={styles.noJournals}>
-                  <Text style={styles.noJournalsText}>
-                    No journals yet. Create one first.
+                  <FontAwesome6
+                    name="book-open"
+                    size={28}
+                    color="#333"
+                    style={{ marginBottom: 10 }}
+                  />
+                  <Text style={styles.noJournalsText}>No journals yet</Text>
+                  <Text style={styles.noJournalsSubText}>
+                    Create one to start reflecting on this verse
                   </Text>
+                  <Pressable
+                    onPress={() => {
+                      setShowJournalPicker(false);
+                      // Small delay so picker dismisses cleanly before create modal opens
+                      setTimeout(() => setShowCreateJournal(true), 300);
+                    }}
+                    style={({ pressed }) => [
+                      styles.createJournalBtn,
+                      pressed && { opacity: 0.8 },
+                    ]}
+                  >
+                    <FontAwesome6 name="plus" size={13} color="#fff" />
+                    <Text style={styles.createJournalBtnText}>
+                      Create a Journal
+                    </Text>
+                  </Pressable>
                 </View>
               ) : (
                 journals.map((j) => (
@@ -652,6 +1050,17 @@ const styles = StyleSheet.create({
   },
   verseRowPressed: { backgroundColor: "#1a1a2e" },
   verseRowSelected: { backgroundColor: "#1a0a2e", borderRadius: 8 },
+  verseRowHighlighted: {
+    backgroundColor: "#1f1800",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#f5c84230",
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    marginBottom: 16,
+  },
+  verseNumberHighlighted: { color: "#f5c842" },
+  verseTextHighlighted: { color: "#fff8dc", fontWeight: "500" },
   verseNumber: {
     color: "#c084fc",
     fontSize: 11,
@@ -697,6 +1106,7 @@ const styles = StyleSheet.create({
   navBtnTextDisabled: { color: "#555" },
   navPageText: { color: "#444", fontSize: 13 },
 
+  // Legacy overlay picker (still used for chapter picker)
   pickerOverlay: {
     position: "absolute",
     top: 0,
@@ -810,8 +1220,29 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     flex: 1,
   },
-  noJournals: { padding: 20, alignItems: "center" },
-  noJournalsText: { color: "#444", fontSize: 13 },
+  noJournals: {
+    padding: 28,
+    alignItems: "center",
+    gap: 6,
+  },
+  noJournalsText: { color: "#ccc", fontSize: 15, fontWeight: "600" },
+  noJournalsSubText: {
+    color: "#444",
+    fontSize: 12,
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  createJournalBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#c084fc",
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    marginTop: 4,
+  },
+  createJournalBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
 
   selectionBar: {
     position: "absolute",
