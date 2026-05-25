@@ -674,7 +674,7 @@ const CARD_THEMES = [
   {
     id: "midnight",
     label: "Midnight",
-    emoji: "moon", // ✅ valid free icon
+    emoji: "moon",
     bg: "#0d0d1a",
     accent: "#7c5fc4",
     accentLight: "#c084fc",
@@ -687,7 +687,7 @@ const CARD_THEMES = [
   {
     id: "dawn",
     label: "Dawn",
-    emoji: "sun", // ✅ fixed: was "sun-horizon" (pro-only, renders "?" on mobile)
+    emoji: "sun",
     bg: "#1a0e06",
     accent: "#c2752a",
     accentLight: "#f59e0b",
@@ -700,7 +700,7 @@ const CARD_THEMES = [
   {
     id: "forest",
     label: "Forest",
-    emoji: "seedling", // ✅ valid free icon
+    emoji: "seedling",
     bg: "#071410",
     accent: "#2d7a5a",
     accentLight: "#4ade80",
@@ -713,7 +713,7 @@ const CARD_THEMES = [
   {
     id: "ocean",
     label: "Ocean",
-    emoji: "water", // ✅ valid free icon
+    emoji: "water",
     bg: "#060e1a",
     accent: "#1d5fa8",
     accentLight: "#60a5fa",
@@ -1850,8 +1850,15 @@ export default function NoteForm() {
   const [activities, setActivities] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
+  const [tagToast, setTagToast] = useState<{ msg: string; ok: boolean } | null>(
+    null,
+  );
+  const tagToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [globalTags, setGlobalTags] = useState<string[]>([]);
   const [selectedValence, setSelectedValence] = useState<number | null>(null);
+
+  // ── FIX: track keyboard height inside Tags modal ──────────────────────────
+  const [tagsModalKbHeight, setTagsModalKbHeight] = useState(0);
 
   const [showDevotionShareModal, setShowDevotionShareModal] = useState(false);
   const [showNoteShareModal, setShowNoteShareModal] = useState(false);
@@ -1907,6 +1914,52 @@ export default function NoteForm() {
       s2.remove();
     };
   }, []);
+
+  // ── Tags modal: keyboard listener + force-reload tags from Storage on open ─
+  useEffect(() => {
+    if (picker !== "tags") {
+      setTagsModalKbHeight(0);
+      return;
+    }
+
+    // Read directly from Storage — bypasses any stale state/closure issue
+    (async () => {
+      try {
+        const stored = await Storage.getItem(STORAGE_KEYS.tags);
+        let parsed: any[] = [];
+        try {
+          parsed = stored ? JSON.parse(stored) : [];
+        } catch {
+          parsed = [];
+        }
+        const clean: string[] = parsed.filter(
+          (t: any) => t != null && typeof t === "string" && t.trim().length > 0,
+        );
+        setGlobalTags(clean);
+        await Storage.setItem(STORAGE_KEYS.tags, JSON.stringify(clean));
+      } catch {}
+    })();
+
+    // Clean the note's own selected tags too
+    const cleanSelected = tagsRef.current.filter(
+      (t) => t != null && typeof t === "string" && t.trim().length > 0,
+    );
+    tagsRef.current = cleanSelected;
+    setTags(cleanSelected);
+
+    const showEvt =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvt =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const s1 = Keyboard.addListener(showEvt, (e: KeyboardEvent) => {
+      setTagsModalKbHeight(e.endCoordinates.height);
+    });
+    const s2 = Keyboard.addListener(hideEvt, () => setTagsModalKbHeight(0));
+    return () => {
+      s1.remove();
+      s2.remove();
+    };
+  }, [picker]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1970,13 +2023,23 @@ export default function NoteForm() {
   const loadGlobalTags = async () => {
     try {
       const stored = await Storage.getItem(STORAGE_KEYS.tags);
-      setGlobalTags(stored ? JSON.parse(stored) : []);
+      const parsed: string[] = stored ? JSON.parse(stored) : [];
+      const clean = parsed.filter(
+        (t) => typeof t === "string" && t.trim().length > 0,
+      );
+      setGlobalTags(clean);
+      if (clean.length !== parsed.length) {
+        await Storage.setItem(STORAGE_KEYS.tags, JSON.stringify(clean));
+      }
     } catch (err) {}
   };
 
   const saveGlobalTags = async (next: string[]) => {
     try {
-      await Storage.setItem(STORAGE_KEYS.tags, JSON.stringify(next));
+      const clean = next.filter(
+        (t) => typeof t === "string" && t.trim().length > 0,
+      );
+      await Storage.setItem(STORAGE_KEYS.tags, JSON.stringify(clean));
     } catch (err) {}
   };
 
@@ -2007,8 +2070,11 @@ export default function NoteForm() {
         activitiesRef.current = existing.activities;
       }
       if (existing.tags) {
-        setTags(existing.tags);
-        tagsRef.current = existing.tags;
+        const cleanTags = existing.tags.filter(
+          (t: string) => t && t.trim().length > 0,
+        );
+        setTags(cleanTags);
+        tagsRef.current = cleanTags;
       }
       if (existing.verseRef) {
         setVerseRef(existing.verseRef);
@@ -2218,11 +2284,33 @@ export default function NoteForm() {
     }
   };
 
+  // Saves to library only — does NOT auto-select into the note
+  const showTagToast = (msg: string, ok: boolean) => {
+    if (tagToastTimer.current) clearTimeout(tagToastTimer.current);
+    setTagToast({ msg, ok });
+    tagToastTimer.current = setTimeout(() => setTagToast(null), 2000);
+  };
+
+  const addTagToLibrary = (raw: string) => {
+    const tag = raw.trim().replace(/^#/, "").toLowerCase();
+    if (!tag) return;
+    setTagInput("");
+    if (globalTags.includes(tag)) {
+      showTagToast(`#${tag} ay nandoon na`, false);
+      return;
+    }
+    const nextGlobal = [...globalTags, tag].sort();
+    setGlobalTags(nextGlobal);
+    saveGlobalTags(nextGlobal);
+    showTagToast(`#${tag} added!`, true);
+  };
+
   const deleteGlobalTag = (tag: string) => {
     const nextGlobal = globalTags.filter((t) => t !== tag);
     setGlobalTags(nextGlobal);
     saveGlobalTags(nextGlobal);
     removeTag(tag);
+    showTagToast(`#${tag} deleted`, false);
   };
 
   const toggleTag = (tag: string) => {
@@ -2257,6 +2345,14 @@ export default function NoteForm() {
   const wordCount = editorText.trim().split(/\s+/).filter(Boolean).length;
 
   const activeSeg = segsRef.current[activeParagraphIdx];
+
+  // ── Synchronous clean — derived every render, no async timing issues ───────
+  const cleanSelectedTags = tags.filter(
+    (t) => t != null && typeof t === "string" && t.trim().length > 0,
+  );
+  const cleanGlobalTags = globalTags.filter(
+    (t) => t != null && typeof t === "string" && t.trim().length > 0,
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: "#161616" }}>
@@ -2386,7 +2482,7 @@ export default function NoteForm() {
             color={future.length === 0 ? "#2a2a2a" : "#555"}
           />
         </TouchableOpacity>
-        {tags.length > 0 && (
+        {tags.filter((t) => t && t.trim().length > 0).length > 0 && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -2397,16 +2493,18 @@ export default function NoteForm() {
               paddingHorizontal: 4,
             }}
           >
-            {tags.map((tag) => (
-              <TouchableOpacity
-                key={tag}
-                onPress={() => removeTag(tag)}
-                style={s.tagPill}
-              >
-                <Text style={s.tagPillText}>#{tag} </Text>
-                <IconX color="#888" />
-              </TouchableOpacity>
-            ))}
+            {tags
+              .filter((t) => t && t.trim().length > 0)
+              .map((tag) => (
+                <TouchableOpacity
+                  key={tag}
+                  onPress={() => removeTag(tag)}
+                  style={s.tagPill}
+                >
+                  <Text style={s.tagPillText}>#{tag} </Text>
+                  <IconX color="#888" />
+                </TouchableOpacity>
+              ))}
           </ScrollView>
         )}
         {wordCount > 0 && tags.length === 0 && (
@@ -2787,126 +2885,18 @@ export default function NoteForm() {
               </View>
               {globalTags.length > 0 ? (
                 <View style={s.moodTagsGrid}>
-                  {globalTags.map((tag) => {
-                    const isActive = tags.includes(tag);
-                    const isDisabled = !isActive && tags.length >= MAX_TAGS;
-                    return (
-                      <TouchableOpacity
-                        key={tag}
-                        onPress={() => toggleTag(tag)}
-                        disabled={isDisabled}
-                        style={[
-                          s.moodTagPill,
-                          isActive
-                            ? {
-                                backgroundColor: journalColor + "33",
-                                borderColor: journalColor,
-                              }
-                            : isDisabled
-                              ? {
-                                  backgroundColor: "#141414",
-                                  borderColor: "#1e1e1e",
-                                }
-                              : {
-                                  backgroundColor: "#1a1a1a",
-                                  borderColor: "#2a2a2a",
-                                },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            s.moodTagText,
-                            {
-                              color: isActive
-                                ? journalColor
-                                : isDisabled
-                                  ? "#333"
-                                  : "#666",
-                            },
-                          ]}
-                        >
-                          #{tag}
-                        </Text>
-                        {isActive && <IconCheck color={journalColor} />}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ) : (
-                <Text style={s.tagEmptyHint}>
-                  Wala pang tags. Gumawa ng tag sa pamamagitan ng # button sa
-                  toolbar.
-                </Text>
-              )}
-            </ScrollView>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Tags Picker Modal */}
-      <Modal
-        transparent
-        visible={picker === "tags"}
-        animationType="slide"
-        onRequestClose={() => setPicker(null)}
-      >
-        <TouchableOpacity
-          style={s.overlay}
-          activeOpacity={1}
-          onPress={() => setPicker(null)}
-        >
-          <TouchableOpacity activeOpacity={1} style={s.sheet}>
-            <View style={s.sheetHandle} />
-            <View style={s.sheetHeader}>
-              <Text style={s.sheetTitle}>Tags</Text>
-              <TouchableOpacity onPress={() => setPicker(null)}>
-                <IconX color="#555" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView
-              style={{ maxHeight: 420 }}
-              contentContainerStyle={{ paddingBottom: 24 }}
-              keyboardShouldPersistTaps="handled"
-            >
-              <View
-                style={[
-                  s.tagSectionHeader,
-                  { marginHorizontal: 18, marginTop: 14, marginBottom: 6 },
-                ]}
-              >
-                <Text style={s.tagCounterLabel}>Selected</Text>
-                <Text
-                  style={[
-                    s.tagCounter,
-                    { color: tags.length >= MAX_TAGS ? "#ef4444" : "#555" },
-                  ]}
-                >
-                  {tags.length}/{MAX_TAGS}
-                </Text>
-              </View>
-              {tags.length >= MAX_TAGS && (
-                <Text
-                  style={[
-                    s.tagEmptyHint,
-                    { color: "#ef444488", marginBottom: 8 },
-                  ]}
-                >
-                  Maximum na. Mag-remove muna ng tag para makapili ng iba.
-                </Text>
-              )}
-              {globalTags.length > 0 ? (
-                <View style={s.moodTagsGrid}>
-                  {globalTags.map((tag) => {
-                    const isActive = tags.includes(tag);
-                    const isDisabled = !isActive && tags.length >= MAX_TAGS;
-                    return (
-                      <View key={tag} style={s.moodTagPillRow}>
+                  {globalTags
+                    .filter((t) => t && t.trim().length > 0)
+                    .map((tag) => {
+                      const isActive = tags.includes(tag);
+                      const isDisabled = !isActive && tags.length >= MAX_TAGS;
+                      return (
                         <TouchableOpacity
+                          key={tag}
                           onPress={() => toggleTag(tag)}
                           disabled={isDisabled}
                           style={[
                             s.moodTagPill,
-                            { flex: 1 },
                             isActive
                               ? {
                                   backgroundColor: journalColor + "33",
@@ -2939,58 +2929,298 @@ export default function NoteForm() {
                           </Text>
                           {isActive && <IconCheck color={journalColor} />}
                         </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => deleteGlobalTag(tag)}
-                          style={s.tagDeleteBtn}
-                          hitSlop={8}
-                        >
-                          <IconX color="#2a2a2a" />
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })}
+                      );
+                    })}
                 </View>
               ) : (
-                <Text style={[s.tagEmptyHint, { marginTop: 16 }]}>
-                  No tags yet. Create a new one below.
+                <Text style={s.tagEmptyHint}>
+                  Wala pang tags. Gumawa ng tag sa pamamagitan ng # button sa
+                  toolbar.
                 </Text>
               )}
-              <View
-                style={{
-                  height: 1,
-                  backgroundColor: "#1e1e1e",
-                  marginHorizontal: 18,
-                  marginTop: 16,
-                  marginBottom: 16,
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Tags Picker Modal ── */}
+      <Modal
+        transparent
+        visible={picker === "tags"}
+        animationType="slide"
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setPicker(null);
+        }}
+      >
+        <TouchableOpacity
+          style={s.overlay}
+          activeOpacity={1}
+          onPress={() => {
+            Keyboard.dismiss();
+            setPicker(null);
+          }}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[s.sheet, { marginBottom: tagsModalKbHeight }]}
+          >
+            <View style={s.sheetHandle} />
+            <View style={s.sheetHeader}>
+              <Text style={s.sheetTitle}>Tags</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setPicker(null);
                 }}
-              />
-              <Text style={s.moodSectionLabel}>CREATE NEW TAG</Text>
-              <View style={s.tagInputRow}>
-                <TextInput
-                  style={s.tagTextInput}
-                  placeholder="Tag name..."
-                  placeholderTextColor="#444"
-                  value={tagInput}
-                  onChangeText={setTagInput}
-                  onSubmitEditing={() => addTag(tagInput)}
-                  returnKeyType="done"
-                  selectionColor={journalColor}
-                  autoCapitalize="none"
-                />
+              >
+                <IconX color="#555" />
+              </TouchableOpacity>
+            </View>
+
+            {/* One-time fix button — only shows if there are corrupted (empty) entries */}
+            {(globalTags.some((t) => !t || !t.trim()) ||
+              tags.some((t) => !t || !t.trim())) && (
+              <TouchableOpacity
+                onPress={async () => {
+                  const cleanG = globalTags.filter(
+                    (t) => t && t.trim().length > 0,
+                  );
+                  const cleanT = tags.filter((t) => t && t.trim().length > 0);
+                  setGlobalTags(cleanG);
+                  tagsRef.current = cleanT;
+                  setTags(cleanT);
+                  await Storage.setItem(
+                    STORAGE_KEYS.tags,
+                    JSON.stringify(cleanG),
+                  );
+                }}
+                style={{
+                  marginHorizontal: 18,
+                  marginTop: 10,
+                  paddingVertical: 8,
+                  paddingHorizontal: 14,
+                  backgroundColor: "#ef444422",
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: "#ef444455",
+                  alignSelf: "flex-start",
+                }}
+              >
+                <Text
+                  style={{ color: "#ef4444", fontSize: 12, fontWeight: "600" }}
+                >
+                  🧹 Clear corrupted tags
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Selected counter — always visible */}
+            <View
+              style={[
+                s.tagSectionHeader,
+                { marginHorizontal: 18, marginTop: 14, marginBottom: 6 },
+              ]}
+            >
+              <Text style={s.tagCounterLabel}>Selected</Text>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+              >
                 <TouchableOpacity
-                  onPress={() => addTag(tagInput)}
+                  onPress={() => {
+                    // Nuclear clear — wipe ALL tags from storage and state
+                    tagsRef.current = [];
+                    setTags([]);
+                    setGlobalTags([]);
+                    saveGlobalTags([]);
+                    triggerSave();
+                  }}
+                >
+                  <Text style={{ color: "#333", fontSize: 11 }}>Clear all</Text>
+                </TouchableOpacity>
+                <Text
                   style={[
-                    s.tagAddBtn,
+                    s.tagCounter,
                     {
-                      backgroundColor: journalColor,
-                      opacity: tags.length >= MAX_TAGS ? 0.35 : 1,
+                      color:
+                        tags.filter((t) => t && t.trim()).length >= MAX_TAGS
+                          ? "#ef4444"
+                          : "#555",
                     },
                   ]}
                 >
-                  <Text style={{ color: "#fff", fontWeight: "600" }}>Add</Text>
-                </TouchableOpacity>
+                  {tags.filter((t) => t && t.trim()).length}/{MAX_TAGS}
+                </Text>
               </View>
+            </View>
+            {tags.filter((t) => t && t.trim()).length >= MAX_TAGS && (
+              <Text
+                style={[
+                  s.tagEmptyHint,
+                  { color: "#ef444488", marginBottom: 4 },
+                ]}
+              >
+                Maximum na. Mag-remove muna ng tag para makapili ng iba.
+              </Text>
+            )}
+
+            {/* All global tags — tap to select/deselect, X to delete from library */}
+            <ScrollView
+              style={{ maxHeight: tagsModalKbHeight > 0 ? 160 : 300 }}
+              contentContainerStyle={{ paddingBottom: 8 }}
+              keyboardShouldPersistTaps="handled"
+            >
+              {(() => {
+                const validTags = globalTags.filter(
+                  (t) => t != null && typeof t === "string" && /\S/.test(t),
+                );
+                const cleanTags = tags.filter((t) => t && /\S/.test(t));
+                if (validTags.length === 0) {
+                  return (
+                    <Text style={[s.tagEmptyHint, { marginTop: 16 }]}>
+                      Wala pang tags. Gumawa ng bago sa ibaba.
+                    </Text>
+                  );
+                }
+                return (
+                  <View>
+                    {validTags.map((tag) => {
+                      const isActive = cleanTags.includes(tag);
+                      const isDisabled =
+                        !isActive && cleanTags.length >= MAX_TAGS;
+                      return (
+                        <View
+                          key={tag}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            paddingHorizontal: 18,
+                            paddingVertical: 3,
+                          }}
+                        >
+                          <TouchableOpacity
+                            onPress={() => toggleTag(tag)}
+                            disabled={isDisabled}
+                            style={{
+                              flex: 1,
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              paddingHorizontal: 14,
+                              paddingVertical: 12,
+                              borderRadius: 12,
+                              borderWidth: 1,
+                              backgroundColor: isActive
+                                ? journalColor + "22"
+                                : isDisabled
+                                  ? "#141414"
+                                  : "#1a1a1a",
+                              borderColor: isActive
+                                ? journalColor
+                                : isDisabled
+                                  ? "#1e1e1e"
+                                  : "#2a2a2a",
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 14,
+                                fontWeight: "600",
+                                color: isActive
+                                  ? journalColor
+                                  : isDisabled
+                                    ? "#333"
+                                    : "#aaa",
+                                flexShrink: 1,
+                              }}
+                              numberOfLines={1}
+                            >
+                              #{tag}
+                            </Text>
+                            {isActive && <IconCheck color={journalColor} />}
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => deleteGlobalTag(tag)}
+                            hitSlop={8}
+                            style={{ padding: 10, marginLeft: 2 }}
+                          >
+                            <IconX color="#333" />
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
+                  </View>
+                );
+              })()}
             </ScrollView>
+
+            {/* Divider + input pinned at bottom — adding saves to library ONLY, does NOT auto-select */}
+            <View
+              style={{
+                height: 1,
+                backgroundColor: "#1e1e1e",
+                marginHorizontal: 18,
+                marginVertical: 12,
+              }}
+            />
+            <Text style={s.moodSectionLabel}>ADD TO LIBRARY</Text>
+
+            {/* Toast feedback */}
+            {tagToast && (
+              <View
+                style={{
+                  marginHorizontal: 18,
+                  marginBottom: 8,
+                  paddingHorizontal: 12,
+                  paddingVertical: 7,
+                  borderRadius: 10,
+                  backgroundColor: tagToast.ok
+                    ? journalColor + "22"
+                    : "#ef444422",
+                  borderWidth: 1,
+                  borderColor: tagToast.ok ? journalColor + "55" : "#ef444455",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <Text style={{ fontSize: 12 }}>{tagToast.ok ? "✓" : "!"}</Text>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: "600",
+                    color: tagToast.ok ? journalColor : "#ef4444",
+                  }}
+                >
+                  {tagToast.msg}
+                </Text>
+              </View>
+            )}
+
+            <View
+              style={[
+                s.tagInputRow,
+                { marginBottom: Platform.OS === "ios" ? 16 : 12 },
+              ]}
+            >
+              <TextInput
+                style={s.tagTextInput}
+                placeholder="Tag name..."
+                placeholderTextColor="#444"
+                value={tagInput}
+                onChangeText={setTagInput}
+                onSubmitEditing={() => addTagToLibrary(tagInput)}
+                returnKeyType="done"
+                selectionColor={journalColor}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                onPress={() => addTagToLibrary(tagInput)}
+                style={[s.tagAddBtn, { backgroundColor: journalColor }]}
+              >
+                <Text style={{ color: "#fff", fontWeight: "600" }}>Add</Text>
+              </TouchableOpacity>
+            </View>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -3410,4 +3640,22 @@ const s = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1,
   },
+  // ── NEW: selected tag pills row inside Tags modal ──────────────────────────
+  selectedTagsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingBottom: 10,
+  },
+  selectedTagPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  selectedTagPillText: { fontSize: 13, fontWeight: "700" },
 });
