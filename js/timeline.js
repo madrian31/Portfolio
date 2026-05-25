@@ -1,5 +1,4 @@
 // Timeline data with FIXED dates and logical career progression
-// Timeline data with FIXED dates and logical career progression
 const timelineData = [
   {
     date: "Jan 2025 - Present",
@@ -27,7 +26,7 @@ const timelineData = [
     title: "BSIT Graduate",
     company: "STI College Carmona",
     description: "Earned a degree in IT, specializing in software development, database design, and UI/UX principles.",
-    skills: ["Web Dev", "Database Design", "Programming", "UI/UX", "Testing"]
+    skills: ["Web Development","Software Development", "Database Design", "Programming", "UI/UX", "Testing"]
   },
   {
     date: "Jul 2022 - Aug 2023",
@@ -41,7 +40,7 @@ const timelineData = [
 
 // Function to create timeline HTML
 function createTimelineHTML() {
-  const VISIBLE_COUNT = 2;
+  const VISIBLE_COUNT = 1;
   const timelineContainer = document.getElementById('timelineItems');
   if (!timelineContainer) return;
 
@@ -96,7 +95,7 @@ function createTimelineHTML() {
 // Function to animate timeline items on scroll
 function animateTimeline() {
   const timelineItems = document.querySelectorAll('.timeline-item');
-  
+
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
@@ -107,7 +106,7 @@ function animateTimeline() {
     threshold: 0.2,
     rootMargin: '0px 0px -50px 0px'
   });
-  
+
   timelineItems.forEach(item => {
     observer.observe(item);
   });
@@ -116,26 +115,9 @@ function animateTimeline() {
 // Initialize timeline when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
   createTimelineHTML();
-  
+
   // Add a small delay to ensure elements are rendered
   setTimeout(() => {
     animateTimeline();
   }, 100);
 });
-
-// Also initialize if script loads after DOM
-/*
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', function() {
-    createTimelineHTML();
-    setTimeout(() => {
-      animateTimeline();
-    }, 100);
-  });
-} else {
-  createTimelineHTML();
-  setTimeout(() => {
-    animateTimeline();
-  }, 100);
-}
-*/
