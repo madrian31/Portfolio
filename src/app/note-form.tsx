@@ -857,10 +857,6 @@ function DevotionCardPreview({
   theme: (typeof CARD_THEMES)[0];
 }) {
   const plainText = segmentsToPlain(segments).trim();
-  const preview =
-    plainText.length > 200
-      ? plainText.slice(0, 200).trimEnd() + "…"
-      : plainText;
   const dateStr = new Date(date || Date.now()).toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
@@ -879,12 +875,7 @@ function DevotionCardPreview({
         {dateStr.toUpperCase()}
       </Text>
       {title ? (
-        <Text
-          style={[dc.titleText, { color: theme.titleColor }]}
-          numberOfLines={2}
-        >
-          {title}
-        </Text>
+        <Text style={[dc.titleText, { color: theme.titleColor }]}>{title}</Text>
       ) : null}
       {verseText ? (
         <View
@@ -896,10 +887,7 @@ function DevotionCardPreview({
             },
           ]}
         >
-          <Text
-            style={[dc.verseText, { color: theme.verseColor }]}
-            numberOfLines={4}
-          >
+          <Text style={[dc.verseText, { color: theme.verseColor }]}>
             "{verseText.replace(/^"|"$/g, "").trim()}"
           </Text>
           {verseRef ? (
@@ -909,12 +897,9 @@ function DevotionCardPreview({
           ) : null}
         </View>
       ) : null}
-      {preview ? (
-        <Text
-          style={[dc.bodyText, { color: theme.textColor }]}
-          numberOfLines={4}
-        >
-          {preview}
+      {plainText ? (
+        <Text style={[dc.bodyText, { color: theme.textColor }]}>
+          {plainText}
         </Text>
       ) : null}
       <View
@@ -970,20 +955,14 @@ function NoteCardPreview({
           {dateStr.toUpperCase()}
         </Text>
         {title ? (
-          <Text
-            style={[nc.titleText, { color: theme.titleColor }]}
-            numberOfLines={2}
-          >
+          <Text style={[nc.titleText, { color: theme.titleColor }]}>
             {title}
           </Text>
         ) : null}
       </View>
       <View style={[nc.divider, { backgroundColor: theme.borderColor }]} />
       {plainText ? (
-        <Text
-          style={[nc.bodyText, { color: theme.textColor }]}
-          numberOfLines={6}
-        >
+        <Text style={[nc.bodyText, { color: theme.textColor }]}>
           {plainText}
         </Text>
       ) : null}
@@ -1329,18 +1308,7 @@ function ShareDevotionModal({
                   {status}
                 </Text>
               </View>
-            ) : (
-              <View style={sm.tipBox}>
-                <View style={sm.tipRow}>
-                  <IconInfo />
-                  <Text style={sm.tipText}>
-                    {Platform.OS === "web"
-                      ? " In the browser, the image will be downloaded. You can now share it in your Messenger group!"
-                      : " Share the image on Messenger, Facebook, or anywhere you like!"}
-                  </Text>
-                </View>
-              </View>
-            )}
+            ) : null}
             <TouchableOpacity
               onPress={handleShare}
               disabled={isCapturing}
@@ -1482,13 +1450,6 @@ function ShareNoteModal({
                   />
                 </ViewShot>
               </ScrollView>
-              <View style={sm.previewNoteRow}>
-                <IconArrowUp color="#444" />
-                <Text style={sm.previewNote}>
-                  {" "}
-                  Preview — buong content kasama sa actual image
-                </Text>
-              </View>
             </View>
             <Text style={sm.sectionLabel}>BACKGROUND</Text>
             <View style={sm.themeRow}>
@@ -1592,18 +1553,7 @@ function ShareNoteModal({
                   {status}
                 </Text>
               </View>
-            ) : (
-              <View style={sm.tipBox}>
-                <View style={sm.tipRow}>
-                  <IconInfo />
-                  <Text style={sm.tipText}>
-                    {" "}
-                    Ang buong laman ng note ay kasama sa image — walang
-                    nababawas!
-                  </Text>
-                </View>
-              </View>
-            )}
+            ) : null}
             <TouchableOpacity
               onPress={handleShare}
               disabled={isCapturing}
@@ -2009,6 +1959,13 @@ export default function NoteForm() {
           align: "left",
         });
       } else if (currentNoteId) {
+        // Reset tags synchronously BEFORE async loadNote to avoid stale ref
+        tagsRef.current = [];
+        setTags([]);
+        activitiesRef.current = [];
+        setActivities([]);
+        emotionRef.current = undefined;
+        setEmotion(undefined);
         noteIdRef.current = currentNoteId;
         loadNote(currentNoteId);
       }
@@ -2065,17 +2022,16 @@ export default function NoteForm() {
         emotionRef.current = existing.emotion;
         setSelectedValence(existing.emotion.valence);
       }
-      if (existing.activities) {
-        setActivities(existing.activities);
-        activitiesRef.current = existing.activities;
-      }
-      if (existing.tags) {
-        const cleanTags = existing.tags.filter(
-          (t: string) => t && t.trim().length > 0,
-        );
-        setTags(cleanTags);
-        tagsRef.current = cleanTags;
-      }
+      // Always reset activities too
+      const cleanActivities = existing.activities ?? [];
+      setActivities(cleanActivities);
+      activitiesRef.current = cleanActivities;
+      // Always reset tags — even if note has no tags, clear previous note's tags
+      const cleanTags = (existing.tags ?? []).filter(
+        (t: string) => t && t.trim().length > 0,
+      );
+      setTags(cleanTags);
+      tagsRef.current = cleanTags;
       if (existing.verseRef) {
         setVerseRef(existing.verseRef);
         verseRefRef.current = existing.verseRef;
@@ -2296,13 +2252,13 @@ export default function NoteForm() {
     if (!tag) return;
     setTagInput("");
     if (globalTags.includes(tag)) {
-      showTagToast(`#${tag} ay nandoon na`, false);
+      showTagToast(`#${tag} already exists`, false);
       return;
     }
     const nextGlobal = [...globalTags, tag].sort();
     setGlobalTags(nextGlobal);
     saveGlobalTags(nextGlobal);
-    showTagToast(`#${tag} added!`, true);
+    showTagToast(`#${tag} added to library!`, true);
   };
 
   const deleteGlobalTag = (tag: string) => {
@@ -2310,15 +2266,19 @@ export default function NoteForm() {
     setGlobalTags(nextGlobal);
     saveGlobalTags(nextGlobal);
     removeTag(tag);
-    showTagToast(`#${tag} deleted`, false);
+    showTagToast(`#${tag} removed from library`, false);
   };
 
   const toggleTag = (tag: string) => {
-    if (tagsRef.current.includes(tag)) {
+    // Always use ref for current truth — filter empties before counting
+    const currentTags = tagsRef.current.filter(
+      (t) => t && typeof t === "string" && t.trim().length > 0,
+    );
+    if (currentTags.includes(tag)) {
       removeTag(tag);
     } else {
-      if (tagsRef.current.length >= MAX_TAGS) return;
-      const next = [...tagsRef.current, tag];
+      if (currentTags.length >= MAX_TAGS) return;
+      const next = [...currentTags, tag];
       tagsRef.current = next;
       setTags(next);
       triggerSave();
@@ -2934,8 +2894,7 @@ export default function NoteForm() {
                 </View>
               ) : (
                 <Text style={s.tagEmptyHint}>
-                  Wala pang tags. Gumawa ng tag sa pamamagitan ng # button sa
-                  toolbar.
+                  No tags yet. Create one using the # button in the toolbar.
                 </Text>
               )}
             </ScrollView>
@@ -3060,7 +3019,7 @@ export default function NoteForm() {
                   { color: "#ef444488", marginBottom: 4 },
                 ]}
               >
-                Maximum na. Mag-remove muna ng tag para makapili ng iba.
+                Maximum reached. Remove a tag to select another.
               </Text>
             )}
 
@@ -3078,7 +3037,7 @@ export default function NoteForm() {
                 if (validTags.length === 0) {
                   return (
                     <Text style={[s.tagEmptyHint, { marginTop: 16 }]}>
-                      Wala pang tags. Gumawa ng bago sa ibaba.
+                      No tags yet. Create a new one below.
                     </Text>
                   );
                 }
