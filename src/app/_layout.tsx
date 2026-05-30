@@ -50,7 +50,10 @@ export default function RootLayout() {
       />
       <Tabs.Screen name="note-list" options={{ href: null }} />
       <Tabs.Screen name="prayer-list" options={{ href: null }} />
-      <Tabs.Screen name="bible-reader" options={{ href: null }} />
+      <Tabs.Screen
+        name="bible-reader"
+        options={{ href: null, tabBarStyle: { display: "none" } }}
+      />
     </Tabs>
   );
 }
