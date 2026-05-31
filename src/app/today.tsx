@@ -1,5 +1,6 @@
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import { useFocusEffect, useRouter } from "expo-router";
+import { openDatabaseSync } from "expo-sqlite";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -121,22 +122,113 @@ function getDailyVerseRef() {
   };
 }
 
+// Full 66-book canonical order — must match bible-reader.tsx BIBLE_BOOKS
+const CANONICAL_BOOKS = [
+  "Genesis",
+  "Exodus",
+  "Leviticus",
+  "Numbers",
+  "Deuteronomy",
+  "Joshua",
+  "Judges",
+  "Ruth",
+  "1 Samuel",
+  "2 Samuel",
+  "1 Kings",
+  "2 Kings",
+  "1 Chronicles",
+  "2 Chronicles",
+  "Ezra",
+  "Nehemiah",
+  "Esther",
+  "Job",
+  "Psalms",
+  "Proverbs",
+  "Ecclesiastes",
+  "Song of Solomon",
+  "Isaiah",
+  "Jeremiah",
+  "Lamentations",
+  "Ezekiel",
+  "Daniel",
+  "Hosea",
+  "Joel",
+  "Amos",
+  "Obadiah",
+  "Jonah",
+  "Micah",
+  "Nahum",
+  "Habakkuk",
+  "Zephaniah",
+  "Haggai",
+  "Zechariah",
+  "Malachi",
+  "Matthew",
+  "Mark",
+  "Luke",
+  "John",
+  "Acts",
+  "Romans",
+  "1 Corinthians",
+  "2 Corinthians",
+  "Galatians",
+  "Ephesians",
+  "Philippians",
+  "Colossians",
+  "1 Thessalonians",
+  "2 Thessalonians",
+  "1 Timothy",
+  "2 Timothy",
+  "Titus",
+  "Philemon",
+  "Hebrews",
+  "James",
+  "1 Peter",
+  "2 Peter",
+  "1 John",
+  "2 John",
+  "3 John",
+  "Jude",
+  "Revelation",
+];
+
+const STORAGE_KEY_ACTIVE_VERSION = "bible_active_version";
+
 async function fetchDailyVerse(): Promise<DailyVerse | null> {
   try {
     const { book, chapter, verse } = getDailyVerseRef();
-    const res = await fetch(
-      `https://bible-api.com/${encodeURIComponent(book)}+${chapter}:${verse}`,
+
+    // Get active version from storage
+    const activeVersion = await Storage.getItem(STORAGE_KEY_ACTIVE_VERSION);
+    const versionId = activeVersion ?? "EnglishKJBible";
+
+    // Read from SQLite (same db as bible-reader)
+    const db = openDatabaseSync("bibles.db");
+    const bookIdx = CANONICAL_BOOKS.findIndex(
+      (b) => b.toLowerCase() === book.toLowerCase(),
     );
-    if (!res.ok) throw new Error("API error");
-    const data = await res.json();
+    if (bookIdx === -1) throw new Error("Book not found");
+
+    const row = db.getFirstSync<{ verses: string }>(
+      "SELECT verses FROM chapters WHERE vid = ? AND bi = ? AND ch = ?",
+      [versionId, bookIdx, chapter],
+    );
+    if (!row) throw new Error("Chapter not downloaded");
+
+    const verses: string[] = JSON.parse(row.verses);
+    const verseIdx = verse - 1;
+    if (verseIdx < 0 || verseIdx >= verses.length)
+      throw new Error("Verse out of range");
+
     return {
-      reference: data.reference,
-      text: data.text?.trim().replace(/\n/g, " ") ?? "",
+      reference: `${book} ${chapter}:${verse}`,
+      text: verses[verseIdx],
       bookName: book,
       chapter,
       verse,
     };
   } catch {
+    // Fallback — shown when no version is downloaded yet
     return {
       reference: "Philippians 4:13",
       text: "I can do all things through Christ who strengthens me.",
