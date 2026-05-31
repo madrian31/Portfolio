@@ -895,7 +895,15 @@ function VersionPickerModal({
     }
   };
 
-  const renderVersionItem = (version: BibleVersion) => {
+  // ── Derived lists ────────────────────────────────────────────────────────────
+  const myVersions = BIBLE_VERSIONS.filter((v) => downloadedIds.includes(v.id));
+  const allFiltered = isSearching
+    ? [...filteredCommon, ...filteredOther]
+    : BIBLE_VERSIONS;
+  const totalResults = allFiltered.length;
+
+  // ── Render a single version row ─────────────────────────────────────────────
+  const renderVersionItem = (version: BibleVersion, showDelete = false) => {
     const isDownloaded = downloadedIds.includes(version.id);
     const isActive = version.id === activeVersionId && isDownloaded;
     const isDownloading = downloadingId === version.id;
@@ -909,95 +917,63 @@ function VersionPickerModal({
           else handleDownload(version);
         }}
         style={({ pressed }) => [
-          versionStyles.item,
-          isActive && versionStyles.itemActive,
-          pressed && !isActive && versionStyles.itemPressed,
+          vs.row,
+          isActive && vs.rowActive,
+          pressed && !isActive && vs.rowPressed,
         ]}
       >
-        <View style={versionStyles.itemLeft}>
-          <Text style={versionStyles.itemFlag}>{version.languageFlag}</Text>
-          <View style={versionStyles.itemInfo}>
-            <View style={versionStyles.itemNameRow}>
-              <Text
-                style={[
-                  versionStyles.itemShortName,
-                  isActive && versionStyles.itemShortNameActive,
-                ]}
-              >
-                {version.shortName}
-              </Text>
-              {isActive && (
-                <View style={versionStyles.activeBadge}>
-                  <Text style={versionStyles.activeBadgeText}>Active</Text>
-                </View>
-              )}
-              {isDownloaded && !isActive && (
-                <View style={versionStyles.downloadedBadge}>
-                  <FontAwesome6
-                    name="circle-check"
-                    size={9}
-                    color="#4ade80"
-                    solid
-                  />
-                  <Text style={versionStyles.downloadedBadgeText}>Saved</Text>
-                </View>
-              )}
-            </View>
-            <Text
-              style={[
-                versionStyles.itemName,
-                isActive && versionStyles.itemNameActive,
-              ]}
-              numberOfLines={1}
-            >
-              {version.name}
-            </Text>
-            <Text style={versionStyles.itemDesc} numberOfLines={1}>
-              {version.description}
-            </Text>
-          </View>
+        {/* Badge */}
+        <View style={[vs.badge, isActive && vs.badgeActive]}>
+          <Text
+            style={[vs.badgeText, isActive && vs.badgeTextActive]}
+            numberOfLines={1}
+          >
+            {version.shortName}
+          </Text>
+        </View>
+
+        {/* Name + description */}
+        <View style={vs.rowInfo}>
+          <Text
+            style={[vs.rowName, isActive && vs.rowNameActive]}
+            numberOfLines={1}
+          >
+            {version.name}
+          </Text>
+          <Text style={vs.rowLang} numberOfLines={1}>
+            {version.languageFlag} {version.language}
+          </Text>
         </View>
 
         {/* Right action */}
-        <View style={versionStyles.itemRight}>
-          {isDownloading ? (
-            <View style={versionStyles.progressPill}>
-              <Text style={versionStyles.progressText}>
-                {downloadProgress}%
-              </Text>
-            </View>
-          ) : isDownloaded ? (
-            <Pressable
-              onPress={(e) => {
-                e.stopPropagation();
-                handleDelete(version);
-              }}
-              style={versionStyles.deleteBtn}
-              hitSlop={8}
-            >
-              <FontAwesome6 name="trash" size={12} color="#555" />
-            </Pressable>
-          ) : status === "error" ? (
-            <View style={versionStyles.errorPill}>
-              <Text style={versionStyles.errorPillText}>Retry</Text>
-            </View>
-          ) : (
-            <View style={versionStyles.downloadPill}>
-              <FontAwesome6
-                name="arrow-down-to-line"
-                size={10}
-                color="#c084fc"
-              />
-              <Text style={versionStyles.downloadPillText}>Get</Text>
-            </View>
-          )}
-        </View>
+        {isDownloading ? (
+          <View style={vs.progressWrap}>
+            <ActivityIndicator size="small" color="#c084fc" />
+            <Text style={vs.progressLabel}>{downloadProgress}%</Text>
+          </View>
+        ) : showDelete && isDownloaded ? (
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation();
+              handleDelete(version);
+            }}
+            hitSlop={10}
+            style={vs.iconBtn}
+          >
+            <FontAwesome6 name="trash-can" size={14} color="#444" />
+          </Pressable>
+        ) : isDownloaded ? (
+          <FontAwesome6 name="chevron-right" size={12} color="#333" />
+        ) : status === "error" ? (
+          <Text style={vs.retryLabel}>Retry</Text>
+        ) : (
+          <FontAwesome6 name="cloud-arrow-down" size={16} color="#555" />
+        )}
       </Pressable>
     );
   };
 
-  const totalResults = filteredCommon.length + filteredOther.length;
-
+  // ── Modal JSX ───────────────────────────────────────────────────────────────
   return (
     <Modal
       transparent
@@ -1005,79 +981,34 @@ function VersionPickerModal({
       animationType="slide"
       onRequestClose={handleClose}
     >
-      <Pressable style={versionStyles.overlay} onPress={handleClose}>
-        <Pressable
-          style={versionStyles.sheet}
-          onPress={(e) => e.stopPropagation()}
-        >
-          {/* Drag handle — tappable to close */}
-          <Pressable
-            onPress={handleClose}
-            style={{
-              alignSelf: "stretch",
-              alignItems: "center",
-              paddingVertical: 6,
-            }}
-          >
-            <View style={versionStyles.handle} />
+      <Pressable style={vs.overlay} onPress={handleClose}>
+        <Pressable style={vs.sheet} onPress={(e) => e.stopPropagation()}>
+          {/* Drag handle */}
+          <Pressable onPress={handleClose} style={vs.handleWrap}>
+            <View style={vs.handle} />
           </Pressable>
 
           {/* Header */}
-          <View style={versionStyles.header}>
-            <Text style={versionStyles.title}>Bible Version</Text>
-            <Pressable
-              onPress={handleClose}
-              style={versionStyles.closeBtn}
-              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-            >
-              <FontAwesome6 name="xmark" size={18} color="#aaa" />
+          <View style={vs.header}>
+            <Pressable onPress={handleClose} hitSlop={16} style={vs.backBtn}>
+              <FontAwesome6 name="chevron-left" size={16} color="#aaa" />
             </Pressable>
+            <Text style={vs.headerTitle}>{BIBLE_VERSIONS.length} Versions</Text>
+            <View style={{ width: 32 }} />
           </View>
-
-          {/* Info banner */}
-          <View style={versionStyles.infoBanner}>
-            <FontAwesome6
-              name="circle-info"
-              size={12}
-              color="#555"
-              style={{ marginTop: 1 }}
-            />
-            <Text style={versionStyles.infoText}>
-              Tap{" "}
-              <Text style={{ color: "#c084fc", fontWeight: "600" }}>Get</Text>{" "}
-              to download a version for offline use.
-            </Text>
-          </View>
-
-          {/* Error banner */}
-          {lastError && (
-            <View style={versionStyles.errorBanner}>
-              <FontAwesome6
-                name="triangle-exclamation"
-                size={12}
-                color="#f87171"
-              />
-              <Text style={versionStyles.errorBannerText} numberOfLines={2}>
-                Download failed: {lastError}
-              </Text>
-              <Pressable onPress={() => setLastError(null)} hitSlop={8}>
-                <FontAwesome6 name="xmark" size={12} color="#f87171" />
-              </Pressable>
-            </View>
-          )}
 
           {/* Search */}
-          <View style={versionStyles.searchWrapper}>
+          <View style={vs.searchWrap}>
             <FontAwesome6
               name="magnifying-glass"
               size={13}
               color="#555"
-              style={versionStyles.searchIcon}
+              style={{ marginRight: 10 }}
             />
             <TextInput
               ref={searchRef}
-              style={versionStyles.searchInput}
-              placeholder="Search version or language..."
+              style={vs.searchInput}
+              placeholder="Search Versions"
               placeholderTextColor="#444"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -1086,64 +1017,73 @@ function VersionPickerModal({
               autoCapitalize="none"
             />
             {searchQuery.length > 0 && (
-              <Pressable
-                onPress={() => setSearchQuery("")}
-                style={versionStyles.searchClear}
-              >
-                <FontAwesome6 name="circle-xmark" size={14} color="#444" />
+              <Pressable onPress={() => setSearchQuery("")} hitSlop={8}>
+                <FontAwesome6 name="circle-xmark" size={15} color="#444" />
               </Pressable>
             )}
           </View>
 
-          {/* Search result count */}
-          {isSearching && (
-            <Text style={versionStyles.searchResultLabel}>
-              {totalResults === 0
-                ? "No results"
-                : `${totalResults} version${totalResults !== 1 ? "s" : ""}`}
-            </Text>
+          {/* Error banner */}
+          {lastError && (
+            <View style={vs.errorBanner}>
+              <FontAwesome6
+                name="triangle-exclamation"
+                size={12}
+                color="#f87171"
+              />
+              <Text style={vs.errorBannerText} numberOfLines={2}>
+                {lastError}
+              </Text>
+              <Pressable onPress={() => setLastError(null)} hitSlop={8}>
+                <FontAwesome6 name="xmark" size={12} color="#f87171" />
+              </Pressable>
+            </View>
           )}
 
           {/* Version list */}
           <ScrollView
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 40 }}
+            contentContainerStyle={{ paddingBottom: 50 }}
           >
-            {/* Common / Featured section */}
-            {filteredCommon.length > 0 && (
+            {/* ── My Versions (downloaded) ── */}
+            {!isSearching && myVersions.length > 0 && (
               <>
-                {!isSearching && (
-                  <View style={versionStyles.sectionHeader}>
-                    <FontAwesome6 name="star" size={10} color="#f5c842" solid />
-                    <Text style={versionStyles.sectionHeaderText}>
-                      Common Versions
-                    </Text>
+                <View style={vs.sectionRow}>
+                  <Text style={vs.sectionTitle}>My Versions</Text>
+                  <View style={vs.countBadge}>
+                    <Text style={vs.countBadgeText}>{myVersions.length}</Text>
                   </View>
-                )}
-                {filteredCommon.map(renderVersionItem)}
-              </>
-            )}
-
-            {/* All other versions */}
-            {filteredOther.length > 0 && (
-              <>
-                <View style={versionStyles.sectionHeader}>
-                  <FontAwesome6 name="globe" size={10} color="#555" />
-                  <Text style={versionStyles.sectionHeaderText}>
-                    {isSearching ? "More Versions" : "All Versions"}
-                  </Text>
                 </View>
-                {filteredOther.map(renderVersionItem)}
+                {myVersions.map((v) => renderVersionItem(v, true))}
+                <View style={vs.divider} />
               </>
             )}
 
-            {totalResults === 0 && (
-              <View style={versionStyles.emptyState}>
-                <Text style={versionStyles.emptyStateText}>
+            {/* ── All / Search results ── */}
+            <View style={vs.sectionRow}>
+              <Text style={vs.sectionTitle}>
+                {isSearching ? "Results" : "All Versions"}
+              </Text>
+              <View style={vs.countBadge}>
+                <Text style={vs.countBadgeText}>{totalResults}</Text>
+              </View>
+            </View>
+
+            {totalResults === 0 ? (
+              <View style={vs.emptyState}>
+                <FontAwesome6
+                  name="magnifying-glass"
+                  size={20}
+                  color="#333"
+                  style={{ marginBottom: 8 }}
+                />
+                <Text style={vs.emptyText}>
                   No versions found for "{searchQuery}"
                 </Text>
               </View>
+            ) : (
+              allFiltered.map((v) => renderVersionItem(v))
             )}
           </ScrollView>
         </Pressable>
@@ -1152,194 +1092,189 @@ function VersionPickerModal({
   );
 }
 
-const versionStyles = StyleSheet.create({
+const vs = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "flex-end",
   },
   sheet: {
-    backgroundColor: "#111",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: "88%",
-    borderTopWidth: 1,
-    borderColor: "#222",
+    backgroundColor: "#0f0f0f",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "90%",
+  },
+  handleWrap: {
+    alignSelf: "stretch",
+    alignItems: "center",
+    paddingTop: 10,
+    paddingBottom: 2,
   },
   handle: {
     width: 36,
     height: 4,
-    backgroundColor: "#2a2a2a",
+    backgroundColor: "#333",
     borderRadius: 2,
-    alignSelf: "center",
-    marginTop: 10,
-    marginBottom: 4,
   },
   header: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  title: { color: "#fff", fontSize: 17, fontWeight: "700" },
-  closeBtn: {
-    padding: 10,
-    backgroundColor: "#1e1e1e",
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
+  backBtn: { padding: 8 },
+  headerTitle: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
   },
-  errorBanner: {
-    flexDirection: "row",
-    gap: 8,
-    alignItems: "center",
-    backgroundColor: "#2a0a0a",
-    marginHorizontal: 16,
-    marginBottom: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#5a1a1a",
-  },
-  errorBannerText: {
-    color: "#f87171",
-    fontSize: 12,
-    flex: 1,
-    lineHeight: 18,
-  },
-  infoBanner: {
-    flexDirection: "row",
-    gap: 7,
-    alignItems: "flex-start",
-    backgroundColor: "#161616",
-    marginHorizontal: 16,
-    marginBottom: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#222",
-  },
-  infoText: { color: "#555", fontSize: 12, flex: 1, lineHeight: 18 },
-  searchWrapper: {
+  searchWrap: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#1a1a1a",
     borderRadius: 12,
     marginHorizontal: 16,
-    marginBottom: 6,
-    paddingHorizontal: 12,
+    marginBottom: 10,
+    paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: "#2a2a2a",
+    borderColor: "#252525",
   },
-  searchIcon: { marginRight: 8 },
   searchInput: {
     flex: 1,
     color: "#fff",
     fontSize: 15,
     paddingVertical: 11,
   },
-  searchClear: { padding: 4 },
-  searchResultLabel: {
-    color: "#444",
-    fontSize: 12,
-    paddingHorizontal: 20,
-    marginBottom: 6,
-    marginTop: 4,
+  errorBanner: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+    backgroundColor: "#1f0808",
+    marginHorizontal: 16,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
   },
-  sectionHeader: {
+  errorBannerText: {
+    color: "#f87171",
+    fontSize: 12,
+    flex: 1,
+  },
+  sectionRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 7,
+    gap: 8,
     paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 6,
+    paddingTop: 14,
+    paddingBottom: 8,
   },
-  sectionHeaderText: {
-    color: "#444",
+  sectionTitle: {
+    color: "#888",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  countBadge: {
+    backgroundColor: "#252525",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  countBadgeText: {
+    color: "#666",
     fontSize: 11,
     fontWeight: "700",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
   },
-  item: {
+  divider: {
+    height: 1,
+    backgroundColor: "#1a1a1a",
+    marginHorizontal: 20,
+    marginTop: 6,
+  },
+  // ── Row item ──
+  row: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 14,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginHorizontal: 8,
+    paddingVertical: 13,
+    marginHorizontal: 6,
     borderRadius: 12,
-    gap: 10,
   },
-  itemActive: { backgroundColor: "#140824" },
-  itemPressed: { backgroundColor: "#181818" },
-  itemLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
-  itemFlag: { fontSize: 22 },
-  itemInfo: { flex: 1, gap: 2 },
-  itemNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  itemShortName: { color: "#ccc", fontSize: 14, fontWeight: "700" },
-  itemShortNameActive: { color: "#c084fc" },
-  itemName: { color: "#666", fontSize: 12 },
-  itemNameActive: { color: "#9b59d0" },
-  itemDesc: { color: "#333", fontSize: 11 },
-  activeBadge: {
-    backgroundColor: "#2d1050",
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  rowActive: {
+    backgroundColor: "#140820",
   },
-  activeBadgeText: { color: "#c084fc", fontSize: 10, fontWeight: "700" },
-  downloadedBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    backgroundColor: "#0a2010",
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  rowPressed: {
+    backgroundColor: "#151515",
   },
-  downloadedBadgeText: { color: "#4ade80", fontSize: 10, fontWeight: "600" },
-  itemRight: { alignItems: "center", justifyContent: "center" },
-  downloadPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "#1e0a3c",
+  badge: {
+    width: 52,
+    height: 44,
     borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    backgroundColor: "#1a1a1a",
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
+    borderColor: "#252525",
+  },
+  badgeActive: {
+    backgroundColor: "#1e0a3c",
     borderColor: "#3d1f6e",
   },
-  downloadPillText: { color: "#c084fc", fontSize: 12, fontWeight: "600" },
-  progressPill: {
-    backgroundColor: "#1e0a3c",
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    minWidth: 48,
+  badgeText: {
+    color: "#888",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+    textAlign: "center",
+  },
+  badgeTextActive: {
+    color: "#c084fc",
+  },
+  rowInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  rowName: {
+    color: "#ccc",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  rowNameActive: {
+    color: "#e0c0ff",
+  },
+  rowLang: {
+    color: "#444",
+    fontSize: 12,
+  },
+  progressWrap: {
+    flexDirection: "row",
     alignItems: "center",
+    gap: 6,
   },
-  progressText: { color: "#c084fc", fontSize: 12, fontWeight: "700" },
-  errorPill: {
-    backgroundColor: "#2a0a0a",
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+  progressLabel: {
+    color: "#c084fc",
+    fontSize: 12,
+    fontWeight: "700",
+    minWidth: 30,
   },
-  errorPillText: { color: "#f87171", fontSize: 12, fontWeight: "600" },
-  deleteBtn: {
+  iconBtn: {
     padding: 8,
-    backgroundColor: "#1a1a1a",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#2a2a2a",
   },
-  emptyState: { paddingVertical: 32, alignItems: "center" },
-  emptyStateText: { color: "#444", fontSize: 14 },
+  retryLabel: {
+    color: "#f87171",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  emptyText: {
+    color: "#444",
+    fontSize: 14,
+  },
 });
 
 // ─── Book Picker Modal ────────────────────────────────────────────────────────
