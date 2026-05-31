@@ -1,11 +1,13 @@
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { openDatabaseSync } from "expo-sqlite";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -41,6 +43,328 @@ type Journal = {
 };
 
 type Testament = "OT" | "NT";
+
+type BibleVersion = {
+  id: string;
+  name: string;
+  shortName: string;
+  language: string;
+  languageFlag: string;
+  description: string;
+  isCommon?: boolean;
+  // "json"  = thiagobodruk JSON  (id is the filename without .json)
+  // "xml"   = christos-c XML corpus (id is the filename without .xml)
+  // "scroll"= bibleapi scrollmapper JSON (id is the filename without .json)
+  source: "json" | "xml" | "scroll";
+};
+
+type DownloadStatus = "none" | "downloading" | "done" | "error";
+
+// ─── Bible Versions List ──────────────────────────────────────────────────────
+// ONLY versions confirmed 200 OK from their source URLs.
+// NIV, ESV, AMP, MBBTAG, AMPC, NKJV etc. are COPYRIGHTED — no legal free source.
+// The 3,000+ versions on YouVersion/Bible.com use a private API (not public).
+
+const BIBLE_VERSIONS: BibleVersion[] = [
+  // ── Common / Featured ────────────────────────────────────────────────────
+  {
+    id: "en_kjv",
+    source: "json",
+    name: "King James Version",
+    shortName: "KJV",
+    language: "English",
+    languageFlag: "🇬🇧",
+    description: "The classic 1611 English translation",
+    isCommon: true,
+  },
+  {
+    id: "English-WEB",
+    source: "xml",
+    name: "World English Bible",
+    shortName: "WEB",
+    language: "English",
+    languageFlag: "🌍",
+    description: "Modern public domain English translation",
+    isCommon: true,
+  },
+  {
+    id: "Tagalog",
+    source: "xml",
+    name: "Ang Biblia (1905)",
+    shortName: "TAGALOG",
+    language: "Filipino",
+    languageFlag: "🇵🇭",
+    description: "Klasikong Tagalog na salin ng Biblia",
+    isCommon: true,
+  },
+  {
+    id: "Cebuano",
+    source: "xml",
+    name: "Ang Bugna Version",
+    shortName: "CEBUANO",
+    language: "Cebuano",
+    languageFlag: "🇵🇭",
+    description: "Cebuano nga hubad sa Biblia",
+    isCommon: true,
+  },
+  {
+    id: "asv",
+    source: "scroll",
+    name: "American Standard Version",
+    shortName: "ASV",
+    language: "English",
+    languageFlag: "🇺🇸",
+    description: "Revised 1901 American translation",
+    isCommon: true,
+  },
+  {
+    id: "en_bbe",
+    source: "json",
+    name: "Bible in Basic English",
+    shortName: "BBE",
+    language: "English",
+    languageFlag: "🇬🇧",
+    description: "Simple vocabulary, easy to read",
+    isCommon: true,
+  },
+  {
+    id: "es_rvr",
+    source: "json",
+    name: "Reina Valera",
+    shortName: "RVR",
+    language: "Spanish",
+    languageFlag: "🇪🇸",
+    description: "Classic Spanish Protestant Bible",
+    isCommon: true,
+  },
+  {
+    id: "ru_synodal",
+    source: "json",
+    name: "Синодальный перевод",
+    shortName: "SYNODAL",
+    language: "Russian",
+    languageFlag: "🇷🇺",
+    description: "Russian Synodal translation",
+    isCommon: true,
+  },
+  {
+    id: "ko_ko",
+    source: "json",
+    name: "Korean Bible",
+    shortName: "KOR",
+    language: "Korean",
+    languageFlag: "🇰🇷",
+    description: "Korean Bible translation",
+    isCommon: true,
+  },
+  // ── All Versions ──────────────────────────────────────────────────────────
+  {
+    id: "ar_svd",
+    source: "json",
+    name: "Arabic Bible (SVD)",
+    shortName: "SVD",
+    language: "Arabic",
+    languageFlag: "🇸🇦",
+    description: "Smith Van Dyke Arabic translation",
+  },
+  {
+    id: "zh_cuv",
+    source: "json",
+    name: "Chinese Union Version",
+    shortName: "CUV",
+    language: "Chinese",
+    languageFlag: "🇨🇳",
+    description: "Traditional Chinese Union Version",
+  },
+  {
+    id: "zh_ncv",
+    source: "json",
+    name: "New Chinese Version",
+    shortName: "NCV",
+    language: "Chinese",
+    languageFlag: "🇨🇳",
+    description: "Simplified Chinese translation",
+  },
+  {
+    id: "de_schlachter",
+    source: "json",
+    name: "Schlachter Bibel",
+    shortName: "SLT",
+    language: "German",
+    languageFlag: "🇩🇪",
+    description: "Franz Eugen Schlachter German Bible",
+  },
+  {
+    id: "el_greek",
+    source: "json",
+    name: "Modern Greek Bible",
+    shortName: "GRK",
+    language: "Greek",
+    languageFlag: "🇬🇷",
+    description: "Modern Greek translation",
+  },
+  {
+    id: "eo_esperanto",
+    source: "json",
+    name: "Esperanto Bible",
+    shortName: "ESP",
+    language: "Esperanto",
+    languageFlag: "🟩",
+    description: "Bible in Esperanto",
+  },
+  {
+    id: "fi_finnish",
+    source: "json",
+    name: "Finnish Bible",
+    shortName: "FIN",
+    language: "Finnish",
+    languageFlag: "🇫🇮",
+    description: "Classic Finnish Bible translation",
+  },
+  {
+    id: "fi_pr",
+    source: "json",
+    name: "Pyhä Raamattu",
+    shortName: "PR",
+    language: "Finnish",
+    languageFlag: "🇫🇮",
+    description: "Finnish Pyhä Raamattu version",
+  },
+  {
+    id: "fr_apee",
+    source: "json",
+    name: "La Bible de l'Épée",
+    shortName: "APEE",
+    language: "French",
+    languageFlag: "🇫🇷",
+    description: "French Bible de l'Épée translation",
+  },
+  {
+    id: "pt_aa",
+    source: "json",
+    name: "Almeida Revisada",
+    shortName: "AA",
+    language: "Portuguese",
+    languageFlag: "🇵🇹",
+    description: "Almeida Revisada Imprensa Bíblica",
+  },
+  {
+    id: "pt_acf",
+    source: "json",
+    name: "Almeida Corrigida",
+    shortName: "ACF",
+    language: "Portuguese",
+    languageFlag: "🇵🇹",
+    description: "Almeida Corrigida e Revisada Fiel",
+  },
+  {
+    id: "pt_nvi",
+    source: "json",
+    name: "Nova Versão Internacional",
+    shortName: "NVI",
+    language: "Portuguese",
+    languageFlag: "🇧🇷",
+    description: "Modern Brazilian Portuguese",
+  },
+  {
+    id: "ro_cornilescu",
+    source: "json",
+    name: "Cornilescu Bible",
+    shortName: "COR",
+    language: "Romanian",
+    languageFlag: "🇷🇴",
+    description: "Dumitru Cornilescu Romanian translation",
+  },
+  {
+    id: "vi_vietnamese",
+    source: "json",
+    name: "Vietnamese Bible",
+    shortName: "VIE",
+    language: "Vietnamese",
+    languageFlag: "🇻🇳",
+    description: "Tiếng Việt Bible translation",
+  },
+];
+
+const STORAGE_KEY_ACTIVE_VERSION = "bible_active_version";
+
+// Source URLs
+const URL_JSON =
+  "https://raw.githubusercontent.com/thiagobodruk/bible/master/json/";
+const URL_XML =
+  "https://raw.githubusercontent.com/christos-c/bible-corpus/master/bibles/";
+const URL_SCROLL =
+  "https://raw.githubusercontent.com/bibleapi/bibleapi-bibles-json/master/";
+
+// Maps BIBLE_BOOKS index (0-based) → XML book abbreviation used in christos-c corpus
+const BOOK_ABBREVS = [
+  "GEN",
+  "EXO",
+  "LEV",
+  "NUM",
+  "DEU",
+  "JOS",
+  "JDG",
+  "RUT",
+  "1SA",
+  "2SA",
+  "1KI",
+  "2KI",
+  "1CH",
+  "2CH",
+  "EZR",
+  "NEH",
+  "EST",
+  "JOB",
+  "PSA",
+  "PRO",
+  "ECC",
+  "SON",
+  "ISA",
+  "JER",
+  "LAM",
+  "EZE",
+  "DAN",
+  "HOS",
+  "JOE",
+  "AMO",
+  "OBA",
+  "JON",
+  "MIC",
+  "NAH",
+  "HAB",
+  "ZEP",
+  "HAG",
+  "ZEC",
+  "MAL",
+  "MAT",
+  "MAR",
+  "LUK",
+  "JOH",
+  "ACT",
+  "ROM",
+  "1CO",
+  "2CO",
+  "GAL",
+  "EPH",
+  "PHI",
+  "COL",
+  "1TH",
+  "2TH",
+  "1TI",
+  "2TI",
+  "TIT",
+  "PHM",
+  "HEB",
+  "JAM",
+  "1PE",
+  "2PE",
+  "1JO",
+  "2JO",
+  "3JO",
+  "JUD",
+  "REV",
+];
 
 // ─── Bible Books List ─────────────────────────────────────────────────────────
 
@@ -123,25 +447,900 @@ function asString(val: string | string[] | undefined, fallback = ""): string {
   return Array.isArray(val) ? val[0] : val;
 }
 
-// ─── Fetch chapter from Bible API ─────────────────────────────────────────────
+// ─── Local Bible Storage (expo-sqlite) ────────────────────────────────────────
+// SQLite has NO size limit (unlike AsyncStorage's 6MB).
+// Stores all chapters in a single database file: bibles.db
 
-async function fetchChapter(
+const bibleDb = openDatabaseSync("bibles.db");
+
+// Create tables on first load
+bibleDb.execSync(`
+  CREATE TABLE IF NOT EXISTS chapters (
+    vid TEXT NOT NULL,
+    bi  INTEGER NOT NULL,
+    ch  INTEGER NOT NULL,
+    verses TEXT NOT NULL,
+    PRIMARY KEY (vid, bi, ch)
+  );
+  CREATE TABLE IF NOT EXISTS downloaded (
+    vid TEXT PRIMARY KEY
+  );
+`);
+
+function isBibleDownloaded(versionId: string): boolean {
+  const row = bibleDb.getFirstSync<{ vid: string }>(
+    "SELECT vid FROM downloaded WHERE vid = ?",
+    [versionId],
+  );
+  return row !== null;
+}
+
+function getDownloadedVersionIds(): string[] {
+  const rows = bibleDb.getAllSync<{ vid: string }>(
+    "SELECT vid FROM downloaded",
+  );
+  return rows.map((r) => r.vid);
+}
+
+// Yields the JS thread so React can flush state updates (progress bar re-renders)
+function yieldThread(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+async function downloadBible(
+  versionId: string,
+  onProgress?: (pct: number) => void,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const version = BIBLE_VERSIONS.find((v) => v.id === versionId);
+    if (!version) return { ok: false, error: `Unknown version: ${versionId}` };
+
+    if (version.source === "xml") {
+      return downloadXmlBible(version, onProgress);
+    }
+    if (version.source === "scroll") {
+      return downloadScrollBible(version, onProgress);
+    }
+    // default: "json" — thiagobodruk
+    return downloadJsonBible(version, onProgress);
+  } catch (e: any) {
+    console.error("[Bible DL] Error:", e?.message ?? e);
+    return { ok: false, error: e?.message ?? String(e) };
+  }
+}
+
+// ── thiagobodruk JSON: [{name, abbrev, chapters: [[v1,v2...],...]}] ────────────
+async function downloadJsonBible(
+  version: BibleVersion,
+  onProgress?: (pct: number) => void,
+): Promise<{ ok: boolean; error?: string }> {
+  const url = `${URL_JSON}${version.id}.json`;
+  console.log("[Bible DL] JSON fetch:", url);
+  const res = await fetch(url);
+  if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+  const raw = await res.text();
+  if (onProgress) onProgress(30);
+  await yieldThread();
+
+  const books: RawBook[] = JSON.parse(raw.replace(/^\uFEFF/, ""));
+  if (onProgress) onProgress(50);
+  await yieldThread();
+
+  return storeBooks(version.id, books, (pct) => {
+    if (onProgress) onProgress(50 + Math.round(pct * 0.5));
+  });
+}
+
+// ── bibleapi scrollmapper: {resultset:{row:[{field:[id,b,c,v,text]}]}} ─────────
+async function downloadScrollBible(
+  version: BibleVersion,
+  onProgress?: (pct: number) => void,
+): Promise<{ ok: boolean; error?: string }> {
+  const url = `${URL_SCROLL}${version.id}.json`;
+  console.log("[Bible DL] Scroll fetch:", url);
+  const res = await fetch(url);
+  if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+  const json = await res.json();
+  if (onProgress) onProgress(30);
+  await yieldThread();
+
+  const rows: Array<{ field: [number, number, number, number, string] }> =
+    json?.resultset?.row ?? [];
+
+  const bookMap: Map<number, Map<number, string[]>> = new Map();
+  for (const { field } of rows) {
+    const [, b, c, , text] = field;
+    if (!bookMap.has(b)) bookMap.set(b, new Map());
+    const chapters = bookMap.get(b)!;
+    if (!chapters.has(c)) chapters.set(c, []);
+    chapters.get(c)!.push(text);
+  }
+  if (onProgress) onProgress(50);
+  await yieldThread();
+
+  const books: RawBook[] = BOOK_ABBREVS.map((abbrev, idx) => {
+    const chapterMap = bookMap.get(idx + 1) ?? new Map();
+    const chapters: string[][] = [];
+    for (let c = 1; c <= chapterMap.size; c++)
+      chapters.push(chapterMap.get(c) ?? []);
+    return { name: abbrev, abbrev, chapters };
+  });
+
+  return storeBooks(version.id, books, (pct) => {
+    if (onProgress) onProgress(50 + Math.round(pct * 0.5));
+  });
+}
+
+// ── christos-c XML corpus: <seg id="b.GEN.1.1">text</seg> ────────────────────
+// ZERO regex — pure indexOf + substring. Hermes chokes on regex with [\s\S]*?
+async function downloadXmlBible(
+  version: BibleVersion,
+  onProgress?: (pct: number) => void,
+): Promise<{ ok: boolean; error?: string }> {
+  const url = `${URL_XML}${version.id}.xml`;
+  console.log("[Bible DL] XML fetch:", url);
+  const res = await fetch(url);
+  if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+  const xml = await res.text();
+  console.log("[Bible DL] XML chars:", xml.length);
+  if (onProgress) onProgress(25);
+  await yieldThread();
+
+  // Fast parse using indexOf only — no regex at all
+  const SEG_OPEN = '<seg id="b.';
+  const SEG_CLOSE = "</seg>";
+  const bookMap: Map<string, Map<number, string[]>> = new Map();
+
+  let pos = 0;
+  let count = 0;
+
+  while (true) {
+    const segStart = xml.indexOf(SEG_OPEN, pos);
+    if (segStart === -1) break;
+
+    const idStart = segStart + SEG_OPEN.length; // right after '<seg id="b.'
+    const dot1 = xml.indexOf(".", idStart); // GEN.
+    const dot2 = xml.indexOf(".", dot1 + 1); // 1.
+    const quote = xml.indexOf('"', dot2 + 1); // 1"
+
+    if (dot1 === -1 || dot2 === -1 || quote === -1) {
+      pos = idStart;
+      continue;
+    }
+
+    const abbrev = xml.substring(idStart, dot1);
+    const chapter = parseInt(xml.substring(dot1 + 1, dot2), 10);
+
+    // Find the > that closes the opening tag, then </seg>
+    const gt = xml.indexOf(">", quote);
+    const endSeg = xml.indexOf(SEG_CLOSE, gt + 1);
+
+    if (gt === -1 || endSeg === -1) {
+      pos = idStart;
+      continue;
+    }
+
+    // Extract verse text, collapse whitespace
+    let text = "";
+    let i = gt + 1;
+    let lastWasSpace = true;
+    while (i < endSeg) {
+      const c = xml.charCodeAt(i);
+      if (c <= 32) {
+        // space, tab, newline, cr
+        if (!lastWasSpace) {
+          text += " ";
+          lastWasSpace = true;
+        }
+      } else {
+        text += xml[i];
+        lastWasSpace = false;
+      }
+      i++;
+    }
+    text = text.trim();
+
+    if (text.length > 0) {
+      if (!bookMap.has(abbrev)) bookMap.set(abbrev, new Map());
+      const chapters = bookMap.get(abbrev)!;
+      if (!chapters.has(chapter)) chapters.set(chapter, []);
+      chapters.get(chapter)!.push(text);
+    }
+
+    pos = endSeg + SEG_CLOSE.length;
+    count++;
+
+    // Yield every 500 verses — keeps UI alive
+    if (count % 500 === 0) {
+      if (onProgress) onProgress(25 + Math.round((count / 31100) * 40)); // 25-65%
+      await yieldThread();
+    }
+  }
+
+  console.log("[Bible DL] Parsed", count, "verses");
+  if (onProgress) onProgress(65);
+  await yieldThread();
+
+  const books: RawBook[] = BOOK_ABBREVS.map((abbrev) => {
+    const chapterMap = bookMap.get(abbrev) ?? new Map();
+    const chapters: string[][] = [];
+    for (let c = 1; c <= chapterMap.size; c++)
+      chapters.push(chapterMap.get(c) ?? []);
+    return { name: abbrev, abbrev, chapters };
+  });
+
+  return storeBooks(version.id, books, (pct) => {
+    if (onProgress) onProgress(65 + Math.round(pct * 0.35));
+  });
+}
+
+// ── Shared: write all chapters to SQLite in one transaction ───────────────────
+async function storeBooks(
+  versionId: string,
+  books: RawBook[],
+  onProgress?: (pct: number) => void,
+): Promise<{ ok: boolean; error?: string }> {
+  // Collect all chapter data
+  const rows: { bi: number; ch: number; data: string }[] = [];
+  books.forEach((book, bookIdx) => {
+    book.chapters.forEach((verses, chIdx) => {
+      if (verses.length > 0) {
+        rows.push({ bi: bookIdx, ch: chIdx + 1, data: JSON.stringify(verses) });
+      }
+    });
+  });
+
+  // Insert in batched transactions — yield between batches for UI
+  const BATCH = 200;
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const batch = rows.slice(i, i + BATCH);
+    bibleDb.withTransactionSync(() => {
+      for (const row of batch) {
+        bibleDb.runSync(
+          "INSERT OR REPLACE INTO chapters (vid, bi, ch, verses) VALUES (?, ?, ?, ?)",
+          [versionId, row.bi, row.ch, row.data],
+        );
+      }
+    });
+    const pct = Math.min(99, Math.round(((i + BATCH) / rows.length) * 100));
+    if (onProgress) onProgress(pct);
+    await yieldThread();
+  }
+
+  // Mark as downloaded
+  bibleDb.runSync("INSERT OR REPLACE INTO downloaded (vid) VALUES (?)", [
+    versionId,
+  ]);
+
+  if (onProgress) onProgress(100);
+  console.log("[Bible DL] Stored", rows.length, "chapters for", versionId);
+  return { ok: true };
+}
+
+async function deleteLocalBible(versionId: string): Promise<void> {
+  try {
+    bibleDb.withTransactionSync(() => {
+      bibleDb.runSync("DELETE FROM chapters WHERE vid = ?", [versionId]);
+      bibleDb.runSync("DELETE FROM downloaded WHERE vid = ?", [versionId]);
+    });
+  } catch {}
+}
+
+// Raw thiagobodruk format: [{name, abbrev, chapters: [[v1, v2, ...], ...]}]
+type RawBook = { name: string; abbrev: string; chapters: string[][] };
+
+async function fetchChapterLocal(
+  versionId: string,
   book: string,
   chapter: number,
 ): Promise<BibleChapter | null> {
   try {
-    const url = `https://bible-api.com/${encodeURIComponent(book)}+${chapter}?verse_numbers=true`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("fetch failed");
-    const data = await res.json();
+    const bookIdx = BIBLE_BOOKS.findIndex(
+      (b) => b.name.toLowerCase() === book.toLowerCase(),
+    );
+    if (bookIdx === -1) return null;
+
+    const row = bibleDb.getFirstSync<{ verses: string }>(
+      "SELECT verses FROM chapters WHERE vid = ? AND bi = ? AND ch = ?",
+      [versionId, bookIdx, chapter],
+    );
+    if (!row) return null;
+
+    const verses: string[] = JSON.parse(row.verses);
     return {
-      reference: data.reference,
-      verses: data.verses ?? [],
+      reference: `${book} ${chapter}`,
+      verses: verses.map((text, idx) => ({
+        book_id: String(bookIdx + 1),
+        book_name: book,
+        chapter,
+        verse: idx + 1,
+        text,
+      })),
     };
   } catch {
     return null;
   }
 }
+
+async function fetchChapter(
+  book: string,
+  chapter: number,
+  versionId = "en_kjv",
+): Promise<{ data: BibleChapter | null; error?: string }> {
+  const downloaded = await isBibleDownloaded(versionId);
+  if (downloaded) {
+    try {
+      const data = await fetchChapterLocal(versionId, book, chapter);
+      if (!data)
+        return { data: null, error: `Chapter not found: ${book} ${chapter}` };
+      return { data };
+    } catch (e: any) {
+      return {
+        data: null,
+        error: `Failed to read local data: ${e?.message ?? e}`,
+      };
+    }
+  }
+  const name =
+    BIBLE_VERSIONS.find((v) => v.id === versionId)?.shortName ?? versionId;
+  return {
+    data: null,
+    error: `"${name}" is not downloaded yet. Tap the version button (top right) to download it.`,
+  };
+}
+
+// ─── Version Picker Modal ─────────────────────────────────────────────────────
+
+type VersionPickerProps = {
+  visible: boolean;
+  activeVersionId: string;
+  onSelect: (versionId: string) => void;
+  onClose: () => void;
+};
+
+function VersionPickerModal({
+  visible,
+  activeVersionId,
+  onSelect,
+  onClose,
+}: VersionPickerProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [downloadedIds, setDownloadedIds] = useState<string[]>([]);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadStatuses, setDownloadStatuses] = useState<
+    Record<string, DownloadStatus>
+  >({});
+  const [lastError, setLastError] = useState<string | null>(null);
+  const searchRef = useRef<TextInput>(null);
+  const mountedRef = useRef(true);
+
+  // Track mounted state so download callbacks don't update after close
+  useEffect(() => {
+    if (visible) mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [visible]);
+
+  const handleClose = () => {
+    mountedRef.current = false;
+    onClose();
+  };
+
+  // Load which versions are already downloaded
+  useEffect(() => {
+    if (!visible) return;
+    setSearchQuery("");
+    setLastError(null);
+    setDownloadedIds(getDownloadedVersionIds());
+  }, [visible]);
+
+  const isSearching = searchQuery.trim().length > 0;
+  const query = searchQuery.toLowerCase();
+
+  const commonVersions = BIBLE_VERSIONS.filter((v) => v.isCommon);
+  const otherVersions = BIBLE_VERSIONS.filter((v) => !v.isCommon);
+
+  const filteredCommon = isSearching
+    ? commonVersions.filter(
+        (v) =>
+          v.name.toLowerCase().includes(query) ||
+          v.shortName.toLowerCase().includes(query) ||
+          v.language.toLowerCase().includes(query),
+      )
+    : commonVersions;
+
+  const filteredOther = isSearching
+    ? otherVersions.filter(
+        (v) =>
+          v.name.toLowerCase().includes(query) ||
+          v.shortName.toLowerCase().includes(query) ||
+          v.language.toLowerCase().includes(query),
+      )
+    : otherVersions;
+
+  const handleDownload = async (version: BibleVersion) => {
+    if (downloadingId) return;
+    setDownloadingId(version.id);
+    setDownloadProgress(0);
+    setLastError(null);
+    setDownloadStatuses((prev) => ({ ...prev, [version.id]: "downloading" }));
+
+    const result = await downloadBible(version.id, (pct) => {
+      if (mountedRef.current) setDownloadProgress(pct);
+    });
+
+    if (!mountedRef.current) return; // modal closed during download
+
+    if (result.ok) {
+      setDownloadedIds((prev) => [...prev, version.id]);
+      setDownloadStatuses((prev) => ({ ...prev, [version.id]: "done" }));
+      onSelect(version.id);
+    } else {
+      console.warn("[VersionPicker] Download failed:", result.error);
+      setLastError(result.error ?? "Unknown error");
+      setDownloadStatuses((prev) => ({ ...prev, [version.id]: "error" }));
+    }
+    setDownloadingId(null);
+  };
+
+  const handleDelete = async (version: BibleVersion) => {
+    await deleteLocalBible(version.id);
+    const updated = downloadedIds.filter((id) => id !== version.id);
+    setDownloadedIds(updated);
+    if (activeVersionId === version.id) {
+      // Switch to next available downloaded version, or KJV as fallback
+      onSelect(updated[0] ?? "en_kjv");
+    }
+  };
+
+  const renderVersionItem = (version: BibleVersion) => {
+    const isDownloaded = downloadedIds.includes(version.id);
+    const isActive = version.id === activeVersionId && isDownloaded;
+    const isDownloading = downloadingId === version.id;
+    const status = downloadStatuses[version.id];
+
+    return (
+      <Pressable
+        key={version.id}
+        onPress={() => {
+          if (isDownloaded) onSelect(version.id);
+          else handleDownload(version);
+        }}
+        style={({ pressed }) => [
+          versionStyles.item,
+          isActive && versionStyles.itemActive,
+          pressed && !isActive && versionStyles.itemPressed,
+        ]}
+      >
+        <View style={versionStyles.itemLeft}>
+          <Text style={versionStyles.itemFlag}>{version.languageFlag}</Text>
+          <View style={versionStyles.itemInfo}>
+            <View style={versionStyles.itemNameRow}>
+              <Text
+                style={[
+                  versionStyles.itemShortName,
+                  isActive && versionStyles.itemShortNameActive,
+                ]}
+              >
+                {version.shortName}
+              </Text>
+              {isActive && (
+                <View style={versionStyles.activeBadge}>
+                  <Text style={versionStyles.activeBadgeText}>Active</Text>
+                </View>
+              )}
+              {isDownloaded && !isActive && (
+                <View style={versionStyles.downloadedBadge}>
+                  <FontAwesome6
+                    name="circle-check"
+                    size={9}
+                    color="#4ade80"
+                    solid
+                  />
+                  <Text style={versionStyles.downloadedBadgeText}>Saved</Text>
+                </View>
+              )}
+            </View>
+            <Text
+              style={[
+                versionStyles.itemName,
+                isActive && versionStyles.itemNameActive,
+              ]}
+              numberOfLines={1}
+            >
+              {version.name}
+            </Text>
+            <Text style={versionStyles.itemDesc} numberOfLines={1}>
+              {version.description}
+            </Text>
+          </View>
+        </View>
+
+        {/* Right action */}
+        <View style={versionStyles.itemRight}>
+          {isDownloading ? (
+            <View style={versionStyles.progressPill}>
+              <Text style={versionStyles.progressText}>
+                {downloadProgress}%
+              </Text>
+            </View>
+          ) : isDownloaded ? (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                handleDelete(version);
+              }}
+              style={versionStyles.deleteBtn}
+              hitSlop={8}
+            >
+              <FontAwesome6 name="trash" size={12} color="#555" />
+            </Pressable>
+          ) : status === "error" ? (
+            <View style={versionStyles.errorPill}>
+              <Text style={versionStyles.errorPillText}>Retry</Text>
+            </View>
+          ) : (
+            <View style={versionStyles.downloadPill}>
+              <FontAwesome6
+                name="arrow-down-to-line"
+                size={10}
+                color="#c084fc"
+              />
+              <Text style={versionStyles.downloadPillText}>Get</Text>
+            </View>
+          )}
+        </View>
+      </Pressable>
+    );
+  };
+
+  const totalResults = filteredCommon.length + filteredOther.length;
+
+  return (
+    <Modal
+      transparent
+      visible={visible}
+      animationType="slide"
+      onRequestClose={handleClose}
+    >
+      <Pressable style={versionStyles.overlay} onPress={handleClose}>
+        <Pressable
+          style={versionStyles.sheet}
+          onPress={(e) => e.stopPropagation()}
+        >
+          {/* Drag handle — tappable to close */}
+          <Pressable
+            onPress={handleClose}
+            style={{
+              alignSelf: "stretch",
+              alignItems: "center",
+              paddingVertical: 6,
+            }}
+          >
+            <View style={versionStyles.handle} />
+          </Pressable>
+
+          {/* Header */}
+          <View style={versionStyles.header}>
+            <Text style={versionStyles.title}>Bible Version</Text>
+            <Pressable
+              onPress={handleClose}
+              style={versionStyles.closeBtn}
+              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+            >
+              <FontAwesome6 name="xmark" size={18} color="#aaa" />
+            </Pressable>
+          </View>
+
+          {/* Info banner */}
+          <View style={versionStyles.infoBanner}>
+            <FontAwesome6
+              name="circle-info"
+              size={12}
+              color="#555"
+              style={{ marginTop: 1 }}
+            />
+            <Text style={versionStyles.infoText}>
+              Tap{" "}
+              <Text style={{ color: "#c084fc", fontWeight: "600" }}>Get</Text>{" "}
+              to download a version for offline use.
+            </Text>
+          </View>
+
+          {/* Error banner */}
+          {lastError && (
+            <View style={versionStyles.errorBanner}>
+              <FontAwesome6
+                name="triangle-exclamation"
+                size={12}
+                color="#f87171"
+              />
+              <Text style={versionStyles.errorBannerText} numberOfLines={2}>
+                Download failed: {lastError}
+              </Text>
+              <Pressable onPress={() => setLastError(null)} hitSlop={8}>
+                <FontAwesome6 name="xmark" size={12} color="#f87171" />
+              </Pressable>
+            </View>
+          )}
+
+          {/* Search */}
+          <View style={versionStyles.searchWrapper}>
+            <FontAwesome6
+              name="magnifying-glass"
+              size={13}
+              color="#555"
+              style={versionStyles.searchIcon}
+            />
+            <TextInput
+              ref={searchRef}
+              style={versionStyles.searchInput}
+              placeholder="Search version or language..."
+              placeholderTextColor="#444"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+            {searchQuery.length > 0 && (
+              <Pressable
+                onPress={() => setSearchQuery("")}
+                style={versionStyles.searchClear}
+              >
+                <FontAwesome6 name="circle-xmark" size={14} color="#444" />
+              </Pressable>
+            )}
+          </View>
+
+          {/* Search result count */}
+          {isSearching && (
+            <Text style={versionStyles.searchResultLabel}>
+              {totalResults === 0
+                ? "No results"
+                : `${totalResults} version${totalResults !== 1 ? "s" : ""}`}
+            </Text>
+          )}
+
+          {/* Version list */}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 40 }}
+          >
+            {/* Common / Featured section */}
+            {filteredCommon.length > 0 && (
+              <>
+                {!isSearching && (
+                  <View style={versionStyles.sectionHeader}>
+                    <FontAwesome6 name="star" size={10} color="#f5c842" solid />
+                    <Text style={versionStyles.sectionHeaderText}>
+                      Common Versions
+                    </Text>
+                  </View>
+                )}
+                {filteredCommon.map(renderVersionItem)}
+              </>
+            )}
+
+            {/* All other versions */}
+            {filteredOther.length > 0 && (
+              <>
+                <View style={versionStyles.sectionHeader}>
+                  <FontAwesome6 name="globe" size={10} color="#555" />
+                  <Text style={versionStyles.sectionHeaderText}>
+                    {isSearching ? "More Versions" : "All Versions"}
+                  </Text>
+                </View>
+                {filteredOther.map(renderVersionItem)}
+              </>
+            )}
+
+            {totalResults === 0 && (
+              <View style={versionStyles.emptyState}>
+                <Text style={versionStyles.emptyStateText}>
+                  No versions found for "{searchQuery}"
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const versionStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    backgroundColor: "#111",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: "88%",
+    borderTopWidth: 1,
+    borderColor: "#222",
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    backgroundColor: "#2a2a2a",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  title: { color: "#fff", fontSize: 17, fontWeight: "700" },
+  closeBtn: {
+    padding: 10,
+    backgroundColor: "#1e1e1e",
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  errorBanner: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+    backgroundColor: "#2a0a0a",
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#5a1a1a",
+  },
+  errorBannerText: {
+    color: "#f87171",
+    fontSize: 12,
+    flex: 1,
+    lineHeight: 18,
+  },
+  infoBanner: {
+    flexDirection: "row",
+    gap: 7,
+    alignItems: "flex-start",
+    backgroundColor: "#161616",
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#222",
+  },
+  infoText: { color: "#555", fontSize: 12, flex: 1, lineHeight: 18 },
+  searchWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1a1a1a",
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginBottom: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "#2a2a2a",
+  },
+  searchIcon: { marginRight: 8 },
+  searchInput: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 15,
+    paddingVertical: 11,
+  },
+  searchClear: { padding: 4 },
+  searchResultLabel: {
+    color: "#444",
+    fontSize: 12,
+    paddingHorizontal: 20,
+    marginBottom: 6,
+    marginTop: 4,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 6,
+  },
+  sectionHeaderText: {
+    color: "#444",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
+  item: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 8,
+    borderRadius: 12,
+    gap: 10,
+  },
+  itemActive: { backgroundColor: "#140824" },
+  itemPressed: { backgroundColor: "#181818" },
+  itemLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
+  itemFlag: { fontSize: 22 },
+  itemInfo: { flex: 1, gap: 2 },
+  itemNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  itemShortName: { color: "#ccc", fontSize: 14, fontWeight: "700" },
+  itemShortNameActive: { color: "#c084fc" },
+  itemName: { color: "#666", fontSize: 12 },
+  itemNameActive: { color: "#9b59d0" },
+  itemDesc: { color: "#333", fontSize: 11 },
+  activeBadge: {
+    backgroundColor: "#2d1050",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  activeBadgeText: { color: "#c084fc", fontSize: 10, fontWeight: "700" },
+  downloadedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#0a2010",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  downloadedBadgeText: { color: "#4ade80", fontSize: 10, fontWeight: "600" },
+  itemRight: { alignItems: "center", justifyContent: "center" },
+  downloadPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#1e0a3c",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: "#3d1f6e",
+  },
+  downloadPillText: { color: "#c084fc", fontSize: 12, fontWeight: "600" },
+  progressPill: {
+    backgroundColor: "#1e0a3c",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    minWidth: 48,
+    alignItems: "center",
+  },
+  progressText: { color: "#c084fc", fontSize: 12, fontWeight: "700" },
+  errorPill: {
+    backgroundColor: "#2a0a0a",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  errorPillText: { color: "#f87171", fontSize: 12, fontWeight: "600" },
+  deleteBtn: {
+    padding: 8,
+    backgroundColor: "#1a1a1a",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#2a2a2a",
+  },
+  emptyState: { paddingVertical: 32, alignItems: "center" },
+  emptyStateText: { color: "#444", fontSize: 14 },
+});
 
 // ─── Book Picker Modal ────────────────────────────────────────────────────────
 
@@ -475,9 +1674,13 @@ export default function BibleReaderScreen() {
   const [selectedBook, setSelectedBook] = useState(initialBook);
   const [currentChapter, setCurrentChapter] = useState(initialChapter);
   const [chapterData, setChapterData] = useState<BibleChapter | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showBookPicker, setShowBookPicker] = useState(false);
   const [showChapterPicker, setShowChapterPicker] = useState(false);
+  const [showVersionPicker, setShowVersionPicker] = useState(false);
+  const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
+  const [reloadTrigger, setReloadTrigger] = useState(0);
 
   const versesListRef = useRef<FlatList>(null);
 
@@ -495,9 +1698,25 @@ export default function BibleReaderScreen() {
   const currentBookMeta =
     BIBLE_BOOKS.find((b) => b.name === selectedBook) ?? BIBLE_BOOKS[43];
 
+  // Load saved active version on mount — if nothing is downloaded, auto-open picker
   useEffect(() => {
+    (async () => {
+      const saved = await Storage.getItem(STORAGE_KEY_ACTIVE_VERSION);
+      const versionId = saved ?? "en_kjv";
+      setActiveVersionId(versionId);
+
+      // If active version isn't downloaded, show picker immediately
+      if (!isBibleDownloaded(versionId)) {
+        setShowVersionPicker(true);
+      }
+    })();
+  }, []);
+
+  // Only load chapter once activeVersionId is resolved (not null)
+  useEffect(() => {
+    if (activeVersionId === null) return;
     loadChapter();
-  }, [selectedBook, currentChapter]);
+  }, [selectedBook, currentChapter, activeVersionId, reloadTrigger]);
 
   useFocusEffect(
     useCallback(() => {
@@ -593,10 +1812,17 @@ export default function BibleReaderScreen() {
   };
 
   const loadChapter = async () => {
+    if (!activeVersionId) return;
     setLoading(true);
     setChapterData(null);
-    const data = await fetchChapter(selectedBook, currentChapter);
+    setLoadError(null);
+    const { data, error } = await fetchChapter(
+      selectedBook,
+      currentChapter,
+      activeVersionId,
+    );
     setChapterData(data);
+    setLoadError(error ?? null);
     setLoading(false);
 
     // Scroll to highlighted verse once list renders
@@ -624,6 +1850,13 @@ export default function BibleReaderScreen() {
     if (currentChapter > 1) {
       setCurrentChapter((c) => c - 1);
     }
+  };
+
+  const handleVersionSelect = async (versionId: string) => {
+    setActiveVersionId(versionId);
+    setReloadTrigger((n) => n + 1); // force reload even if same version
+    await Storage.setItem(STORAGE_KEY_ACTIVE_VERSION, versionId);
+    setShowVersionPicker(false);
   };
 
   const selectBook = (book: string) => {
@@ -658,11 +1891,20 @@ export default function BibleReaderScreen() {
           </Pressable>
         </View>
 
-        <View style={{ width: 36 }} />
+        {/* Version badge button */}
+        <Pressable
+          onPress={() => setShowVersionPicker(true)}
+          style={styles.versionBtn}
+        >
+          <Text style={styles.versionBtnText}>
+            {BIBLE_VERSIONS.find((v) => v.id === activeVersionId)?.shortName ??
+              "WEB"}
+          </Text>
+        </Pressable>
       </View>
 
       {/* ── Verses ── */}
-      {loading ? (
+      {loading || activeVersionId === null ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator color="#c084fc" size="large" />
           <Text style={styles.loadingText}>Loading...</Text>
@@ -752,11 +1994,60 @@ export default function BibleReaderScreen() {
             );
           }}
         />
+      ) : loadError?.includes("not downloaded") ? (
+        <View style={styles.loadingContainer}>
+          <FontAwesome6
+            name="book-bible"
+            size={40}
+            color="#c084fc"
+            style={{ marginBottom: 16 }}
+          />
+          <Text
+            style={[
+              styles.errorText,
+              { color: "#ccc", fontSize: 16, fontWeight: "600" },
+            ]}
+          >
+            Download a Bible version
+          </Text>
+          <Text style={[styles.errorText, { marginTop: 4 }]}>
+            Choose a version to start reading offline.
+          </Text>
+          <Pressable
+            onPress={() => setShowVersionPicker(true)}
+            style={[
+              styles.retryBtn,
+              { backgroundColor: "#1e0a3c", marginTop: 20 },
+            ]}
+          >
+            <FontAwesome6 name="download" size={13} color="#c084fc" />
+            <Text style={styles.retryBtnText}>Browse Versions</Text>
+          </Pressable>
+        </View>
       ) : (
         <View style={styles.loadingContainer}>
+          <FontAwesome6
+            name="circle-exclamation"
+            size={32}
+            color="#333"
+            style={{ marginBottom: 12 }}
+          />
           <Text style={styles.errorText}>
-            Could not load chapter.{"\n"}Check your internet connection.
+            {loadError ?? "Could not load chapter."}
           </Text>
+          <Pressable onPress={loadChapter} style={styles.retryBtn}>
+            <FontAwesome6 name="rotate-right" size={12} color="#c084fc" />
+            <Text style={styles.retryBtnText}>Retry</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setShowVersionPicker(true)}
+            style={[styles.retryBtn, { marginTop: 8, borderColor: "#2a2a2a" }]}
+          >
+            <FontAwesome6 name="book-bible" size={12} color="#555" />
+            <Text style={[styles.retryBtnText, { color: "#555" }]}>
+              Change Version
+            </Text>
+          </Pressable>
         </View>
       )}
 
@@ -837,6 +2128,14 @@ export default function BibleReaderScreen() {
         visible={showCreateJournal}
         onClose={() => setShowCreateJournal(false)}
         onSave={saveNewJournalFromPicker}
+      />
+
+      {/* ── Version Picker Modal ── */}
+      <VersionPickerModal
+        visible={showVersionPicker}
+        activeVersionId={activeVersionId ?? "en_kjv"}
+        onSelect={handleVersionSelect}
+        onClose={() => setShowVersionPicker(false)}
       />
 
       {/* ── Book Picker Modal (new) ── */}
@@ -1020,6 +2319,22 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 36, padding: 4 },
   navCenter: { flexDirection: "row", gap: 8, alignItems: "center" },
+  versionBtn: {
+    backgroundColor: "#1e0a3c",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: "#3d1f6e",
+    minWidth: 46,
+    alignItems: "center",
+  },
+  versionBtnText: {
+    color: "#c084fc",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
   selectorBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -1077,7 +2392,25 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   loadingText: { color: "#555", fontSize: 14 },
-  errorText: { color: "#555", fontSize: 14, textAlign: "center" },
+  errorText: {
+    color: "#555",
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 22,
+    paddingHorizontal: 32,
+  },
+  retryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#3d1f6e",
+  },
+  retryBtnText: { color: "#c084fc", fontSize: 14, fontWeight: "600" },
 
   chapterNav: {
     position: "absolute",
