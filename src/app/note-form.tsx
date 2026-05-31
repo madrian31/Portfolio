@@ -3,8 +3,8 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Dimensions,
   Keyboard,
+  KeyboardAvoidingView,
   KeyboardEvent,
   Modal,
   Platform,
@@ -26,7 +26,6 @@ import Svg, {
 } from "react-native-svg";
 import ViewShot, { captureRef } from "react-native-view-shot";
 import { Storage, STORAGE_KEYS } from "../storage";
-
 // ─── Bootstrap Activity Icons ─────────────────────────────────────────────────
 function ActivityIcon({
   id,
@@ -1703,7 +1702,7 @@ const sm = StyleSheet.create({
   },
 });
 
-// ─── NEW: Single TextInput Editor ─────────────────────────────────────────────
+// ─── Single TextInput Editor helpers ─────────────────────────────────────────
 
 function getRichText(segments: Segment[]): string {
   return segments.map((s) => s.text).join("\n");
@@ -1716,9 +1715,7 @@ function syncTextToSegments(
 ): Segment[] {
   const lines = newText.split("\n");
   return lines.map((line, i) => {
-    if (oldSegments[i]) {
-      return { ...oldSegments[i], text: line };
-    }
+    if (oldSegments[i]) return { ...oldSegments[i], text: line };
     return defaultSegment({
       text: line,
       bold: fmt.bold,
@@ -1777,7 +1774,9 @@ export default function NoteForm() {
     [],
   );
   const [future, setFuture] = useState<{ text: string; segs: Segment[] }[]>([]);
-  const [kbHeight, setKbHeight] = useState(0);
+
+  // ── CHANGE 1: Remove kbHeight state — KAV handles it now ──────────────────
+  // const [kbHeight, setKbHeight] = useState(0);  // <-- REMOVED
 
   const [fmt, setFmt] = useState<Partial<Segment>>({
     bold: false,
@@ -1807,7 +1806,6 @@ export default function NoteForm() {
   const [globalTags, setGlobalTags] = useState<string[]>([]);
   const [selectedValence, setSelectedValence] = useState<number | null>(null);
 
-  // ── FIX: track keyboard height inside Tags modal ──────────────────────────
   const [tagsModalKbHeight, setTagsModalKbHeight] = useState(0);
 
   const [showDevotionShareModal, setShowDevotionShareModal] = useState(false);
@@ -1827,6 +1825,9 @@ export default function NoteForm() {
   const tagsRef = useRef<string[]>([]);
 
   const editorInputRef = useRef<TextInput>(null);
+
+  // ── CHANGE 2: scrollRef for auto-scroll ───────────────────────────────────
+  const scrollRef = useRef<ScrollView>(null);
 
   const hasContent = editorText.trim().length > 0;
   const isDevotionNote = !!(verseRef || verseText);
@@ -1849,30 +1850,16 @@ export default function NoteForm() {
     });
   }, [activeParagraphIdx]);
 
-  useEffect(() => {
-    const showEvt =
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvt =
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const s1 = Keyboard.addListener(showEvt, (e: KeyboardEvent) => {
-      const screenHeight = Dimensions.get("window").height;
-      setKbHeight(screenHeight - e.endCoordinates.screenY);
-    });
-    const s2 = Keyboard.addListener(hideEvt, () => setKbHeight(0));
-    return () => {
-      s1.remove();
-      s2.remove();
-    };
-  }, []);
+  // ── CHANGE 1: Remove standalone keyboard listeners for kbHeight ───────────
+  // (KAV handles keyboard avoidance now; we only need it for the Tags modal)
 
-  // ── Tags modal: keyboard listener + force-reload tags from Storage on open ─
+  // ── Tags modal: keyboard listener ─────────────────────────────────────────
   useEffect(() => {
     if (picker !== "tags") {
       setTagsModalKbHeight(0);
       return;
     }
 
-    // Read directly from Storage — bypasses any stale state/closure issue
     (async () => {
       try {
         const stored = await Storage.getItem(STORAGE_KEYS.tags);
@@ -1890,7 +1877,6 @@ export default function NoteForm() {
       } catch {}
     })();
 
-    // Clean the note's own selected tags too
     const cleanSelected = tagsRef.current.filter(
       (t) => t != null && typeof t === "string" && t.trim().length > 0,
     );
@@ -1901,9 +1887,9 @@ export default function NoteForm() {
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvt =
       Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const s1 = Keyboard.addListener(showEvt, (e: KeyboardEvent) => {
-      setTagsModalKbHeight(e.endCoordinates.height);
-    });
+    const s1 = Keyboard.addListener(showEvt, (e: KeyboardEvent) =>
+      setTagsModalKbHeight(e.endCoordinates.height),
+    );
     const s2 = Keyboard.addListener(hideEvt, () => setTagsModalKbHeight(0));
     return () => {
       s1.remove();
@@ -1959,7 +1945,6 @@ export default function NoteForm() {
           align: "left",
         });
       } else if (currentNoteId) {
-        // Reset tags synchronously BEFORE async loadNote to avoid stale ref
         tagsRef.current = [];
         setTags([]);
         activitiesRef.current = [];
@@ -2022,11 +2007,9 @@ export default function NoteForm() {
         emotionRef.current = existing.emotion;
         setSelectedValence(existing.emotion.valence);
       }
-      // Always reset activities too
       const cleanActivities = existing.activities ?? [];
       setActivities(cleanActivities);
       activitiesRef.current = cleanActivities;
-      // Always reset tags — even if note has no tags, clear previous note's tags
       const cleanTags = (existing.tags ?? []).filter(
         (t: string) => t && t.trim().length > 0,
       );
@@ -2138,7 +2121,6 @@ export default function NoteForm() {
       { text: editorTextRef.current, segs: segsRef.current },
     ]);
     setFuture([]);
-
     const newSegs = syncTextToSegments(newText, segsRef.current, fmt);
     segsRef.current = newSegs;
     setSegments([...newSegs]);
@@ -2146,6 +2128,32 @@ export default function NoteForm() {
     setEditorText(newText);
     latestRef.current.segments = newSegs;
     triggerSave();
+  };
+
+  // ── CHANGE 2: Auto-scroll to cursor ───────────────────────────────────────
+  const handleSelectionChange = (e: any) => {
+    const pos = e.nativeEvent.selection.start;
+    cursorPosRef.current = pos;
+    setCursorPos(pos);
+
+    // Estimate cursor Y: count newlines before cursor × lineHeight
+    const textBefore = editorTextRef.current.slice(0, pos);
+    const lineIndex = textBefore.split("\n").length - 1;
+    const activeSeg = segsRef.current[lineIndex];
+    const lineH = activeSeg
+      ? (activeSeg.heading
+          ? HEADING_SIZE[activeSeg.heading]
+          : (activeSeg.fontSize ?? 16)) * 1.6
+      : 16 * 1.6;
+
+    // Approximate top of cursor line (10px editor top padding + lines above)
+    const approxY = 10 + lineIndex * lineH;
+
+    // Scroll so cursor stays visible above the toolbar (TOOLBAR_H + UNDO_H = 84)
+    scrollRef.current?.scrollTo({
+      y: Math.max(0, approxY - 80),
+      animated: false,
+    });
   };
 
   const handleUndo = () => {
@@ -2240,7 +2248,6 @@ export default function NoteForm() {
     }
   };
 
-  // Saves to library only — does NOT auto-select into the note
   const showTagToast = (msg: string, ok: boolean) => {
     if (tagToastTimer.current) clearTimeout(tagToastTimer.current);
     setTagToast({ msg, ok });
@@ -2270,7 +2277,6 @@ export default function NoteForm() {
   };
 
   const toggleTag = (tag: string) => {
-    // Always use ref for current truth — filter empties before counting
     const currentTags = tagsRef.current.filter(
       (t) => t && typeof t === "string" && t.trim().length > 0,
     );
@@ -2299,14 +2305,14 @@ export default function NoteForm() {
 
   const TOOLBAR_H = 48;
   const UNDO_H = 36;
-  const bottomBarH = TOOLBAR_H + UNDO_H;
-  const toolbarBottom = kbHeight > 0 ? kbHeight : insets.bottom;
+
+  // ── CHANGE 4: toolbarBottom is always just insets.bottom — KAV handles the
+  //    rest. No more kbHeight double-counting. ──────────────────────────────
+  const toolbarBottom = insets.bottom;
 
   const wordCount = editorText.trim().split(/\s+/).filter(Boolean).length;
-
   const activeSeg = segsRef.current[activeParagraphIdx];
 
-  // ── Synchronous clean — derived every render, no async timing issues ───────
   const cleanSelectedTags = tags.filter(
     (t) => t != null && typeof t === "string" && t.trim().length > 0,
   );
@@ -2315,7 +2321,12 @@ export default function NoteForm() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#161616" }}>
+    // ── CHANGE 3: KeyboardAvoidingView wraps everything ────────────────────
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: "#161616" }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={0}
+    >
       {/* Top bar */}
       <View style={[s.topBar, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity
@@ -2361,29 +2372,34 @@ export default function NoteForm() {
         }}
       />
 
-      {/* Bible Verse Card */}
-      {verseText ? (
-        <View style={s.verseCard}>
-          <View style={s.verseCardRefRow}>
-            <IconBible />
-            <Text style={s.verseCardRef}> {verseRef}</Text>
-          </View>
-          <Text style={s.verseCardText}>
-            {verseText.replace(/^"|"$/g, "").trim()}
-          </Text>
-        </View>
-      ) : null}
-
-      {/* Single TextInput Editor */}
+      {/* ── CHANGE 1: ScrollView now includes Verse Card + Editor ────────── */}
+      {/* This lets title+verse scroll out of view, giving editor full screen */}
       <ScrollView
+        ref={scrollRef}
         style={{ flex: 1 }}
         contentContainerStyle={[
           s.editorContent,
-          { paddingBottom: toolbarBottom + bottomBarH + 8 },
+          { paddingBottom: toolbarBottom + TOOLBAR_H + UNDO_H + 8 },
         ]}
         keyboardShouldPersistTaps="handled"
+        // ── CHANGE 3: interactive dismiss so swipe-down hides keyboard ────
+        keyboardDismissMode="interactive"
         nestedScrollEnabled={true}
+        showsVerticalScrollIndicator={false}
       >
+        {/* Bible Verse Card — now inside the scroll area */}
+        {verseText ? (
+          <View style={s.verseCard}>
+            <View style={s.verseCardRefRow}>
+              <IconBible />
+              <Text style={s.verseCardRef}> {verseRef}</Text>
+            </View>
+            <Text style={s.verseCardText}>
+              {verseText.replace(/^"|"$/g, "").trim()}
+            </Text>
+          </View>
+        ) : null}
+
         <TextInput
           ref={editorInputRef}
           style={[
@@ -2392,11 +2408,8 @@ export default function NoteForm() {
           ]}
           value={editorText}
           onChangeText={handleEditorChange}
-          onSelectionChange={(e) => {
-            const pos = e.nativeEvent.selection.start;
-            cursorPosRef.current = pos;
-            setCursorPos(pos);
-          }}
+          // ── CHANGE 2: use updated handler for auto-scroll ────────────
+          onSelectionChange={handleSelectionChange}
           multiline={true}
           scrollEnabled={false}
           blurOnSubmit={false}
@@ -2902,7 +2915,7 @@ export default function NoteForm() {
         </TouchableOpacity>
       </Modal>
 
-      {/* ── Tags Picker Modal ── */}
+      {/* Tags Picker Modal */}
       <Modal
         transparent
         visible={picker === "tags"}
@@ -2937,7 +2950,6 @@ export default function NoteForm() {
               </TouchableOpacity>
             </View>
 
-            {/* One-time fix button — only shows if there are corrupted (empty) entries */}
             {(globalTags.some((t) => !t || !t.trim()) ||
               tags.some((t) => !t || !t.trim())) && (
               <TouchableOpacity
@@ -2974,7 +2986,6 @@ export default function NoteForm() {
               </TouchableOpacity>
             )}
 
-            {/* Selected counter — always visible */}
             <View
               style={[
                 s.tagSectionHeader,
@@ -2987,7 +2998,6 @@ export default function NoteForm() {
               >
                 <TouchableOpacity
                   onPress={() => {
-                    // Nuclear clear — wipe ALL tags from storage and state
                     tagsRef.current = [];
                     setTags([]);
                     setGlobalTags([]);
@@ -3023,7 +3033,6 @@ export default function NoteForm() {
               </Text>
             )}
 
-            {/* All global tags — tap to select/deselect, X to delete from library */}
             <ScrollView
               style={{ maxHeight: tagsModalKbHeight > 0 ? 160 : 300 }}
               contentContainerStyle={{ paddingBottom: 8 }}
@@ -3085,12 +3094,12 @@ export default function NoteForm() {
                               style={{
                                 fontSize: 14,
                                 fontWeight: "600",
+                                flexShrink: 1,
                                 color: isActive
                                   ? journalColor
                                   : isDisabled
                                     ? "#333"
                                     : "#aaa",
-                                flexShrink: 1,
                               }}
                               numberOfLines={1}
                             >
@@ -3113,7 +3122,6 @@ export default function NoteForm() {
               })()}
             </ScrollView>
 
-            {/* Divider + input pinned at bottom — adding saves to library ONLY, does NOT auto-select */}
             <View
               style={{
                 height: 1,
@@ -3124,7 +3132,6 @@ export default function NoteForm() {
             />
             <Text style={s.moodSectionLabel}>ADD TO LIBRARY</Text>
 
-            {/* Toast feedback */}
             {tagToast && (
               <View
                 style={{
@@ -3205,7 +3212,7 @@ export default function NoteForm() {
         journalName={journalName}
         journalColor={journalColor}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -3599,7 +3606,6 @@ const s = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1,
   },
-  // ── NEW: selected tag pills row inside Tags modal ──────────────────────────
   selectedTagsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
