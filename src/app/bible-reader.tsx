@@ -45,326 +45,170 @@ type Journal = {
 type Testament = "OT" | "NT";
 
 type BibleVersion = {
-  id: string;
+  id: string; // filename without .xml on Beblia repo
   name: string;
   shortName: string;
   language: string;
   languageFlag: string;
   description: string;
   isCommon?: boolean;
-  // "json"  = thiagobodruk JSON  (id is the filename without .json)
-  // "xml"   = christos-c XML corpus (id is the filename without .xml)
-  // "scroll"= bibleapi scrollmapper JSON (id is the filename without .json)
-  source: "json" | "xml" | "scroll";
 };
 
 type DownloadStatus = "none" | "downloading" | "done" | "error";
 
 // ─── Bible Versions List ──────────────────────────────────────────────────────
-// ONLY versions confirmed 200 OK from their source URLs.
-// NIV, ESV, AMP, MBBTAG, AMPC, NKJV etc. are COPYRIGHTED — no legal free source.
-// The 3,000+ versions on YouVersion/Bible.com use a private API (not public).
+// Source: github.com/Beblia/Holy-Bible-XML-Format — all verified 200 OK.
+// "Use at your own discretion, no need to ask for permission" — Beblia
 
 const BIBLE_VERSIONS: BibleVersion[] = [
   // ── Common / Featured ────────────────────────────────────────────────────
   {
-    id: "en_kjv",
-    source: "json",
-    name: "King James Version",
+    id: "EnglishKJBible",
     shortName: "KJV",
+    name: "King James Version",
     language: "English",
     languageFlag: "🇬🇧",
-    description: "The classic 1611 English translation",
+    description: "Classic 1611 English translation",
     isCommon: true,
   },
   {
-    id: "English-WEB",
-    source: "xml",
-    name: "World English Bible",
-    shortName: "WEB",
+    id: "EnglishNIVBible",
+    shortName: "NIV",
+    name: "New International Version",
     language: "English",
-    languageFlag: "🌍",
-    description: "Modern public domain English translation",
+    languageFlag: "🇺🇸",
+    description: "Most popular modern English Bible",
     isCommon: true,
   },
   {
-    id: "Tagalog",
-    source: "xml",
+    id: "EnglishESVBible",
+    shortName: "ESV",
+    name: "English Standard Version",
+    language: "English",
+    languageFlag: "🇺🇸",
+    description: "Essentially literal modern translation",
+    isCommon: true,
+  },
+  {
+    id: "EnglishNKJBible",
+    shortName: "NKJV",
+    name: "New King James Version",
+    language: "English",
+    languageFlag: "🇺🇸",
+    description: "Modern update to the classic KJV",
+    isCommon: true,
+  },
+  {
+    id: "EnglishNLTBible",
+    shortName: "NLT",
+    name: "New Living Translation",
+    language: "English",
+    languageFlag: "🇺🇸",
+    description: "Thought-for-thought modern translation",
+    isCommon: true,
+  },
+  {
+    id: "EnglishNASBBible",
+    shortName: "NASB",
+    name: "New American Standard Bible",
+    language: "English",
+    languageFlag: "🇺🇸",
+    description: "Highly literal modern translation",
+    isCommon: true,
+  },
+  {
+    id: "EnglishAmplifiedBible",
+    shortName: "AMP",
+    name: "Amplified Bible",
+    language: "English",
+    languageFlag: "🇺🇸",
+    description: "Expanded meaning with alternate readings",
+    isCommon: true,
+  },
+  {
+    id: "EnglishAmplifiedClassicBible",
+    shortName: "AMPC",
+    name: "Amplified Bible, Classic Edition",
+    language: "English",
+    languageFlag: "🇺🇸",
+    description: "Original Amplified version",
+    isCommon: true,
+  },
+  {
+    id: "TagalogBible",
+    shortName: "TAG",
     name: "Ang Biblia (1905)",
-    shortName: "TAGALOG",
     language: "Filipino",
     languageFlag: "🇵🇭",
     description: "Klasikong Tagalog na salin ng Biblia",
     isCommon: true,
   },
   {
-    id: "Cebuano",
-    source: "xml",
-    name: "Ang Bugna Version",
-    shortName: "CEBUANO",
+    id: "Tagalog2012Bible",
+    shortName: "TAG12",
+    name: "Ang Biblia (2012)",
+    language: "Filipino",
+    languageFlag: "🇵🇭",
+    description: "Makabagong Tagalog na salin",
+    isCommon: true,
+  },
+  {
+    id: "CebuanoBible",
+    shortName: "CEB",
+    name: "Cebuano Bible",
     language: "Cebuano",
     languageFlag: "🇵🇭",
     description: "Cebuano nga hubad sa Biblia",
     isCommon: true,
   },
+  // ── All Versions ──────────────────────────────────────────────────────────
   {
-    id: "asv",
-    source: "scroll",
-    name: "American Standard Version",
+    id: "EnglishASVBible",
     shortName: "ASV",
+    name: "American Standard Version",
     language: "English",
     languageFlag: "🇺🇸",
     description: "Revised 1901 American translation",
-    isCommon: true,
   },
   {
-    id: "en_bbe",
-    source: "json",
-    name: "Bible in Basic English",
-    shortName: "BBE",
+    id: "EnglishCSBBible",
+    shortName: "CSB",
+    name: "Christian Standard Bible",
     language: "English",
-    languageFlag: "🇬🇧",
-    description: "Simple vocabulary, easy to read",
-    isCommon: true,
+    languageFlag: "🇺🇸",
+    description: "Balance of readability and accuracy",
   },
   {
-    id: "es_rvr",
-    source: "json",
-    name: "Reina Valera",
-    shortName: "RVR",
-    language: "Spanish",
-    languageFlag: "🇪🇸",
-    description: "Classic Spanish Protestant Bible",
-    isCommon: true,
+    id: "EnglishBereanBible",
+    shortName: "BSB",
+    name: "Berean Standard Bible",
+    language: "English",
+    languageFlag: "🇺🇸",
+    description: "Literal yet readable modern translation",
   },
   {
-    id: "ru_synodal",
-    source: "json",
-    name: "Синодальный перевод",
-    shortName: "SYNODAL",
-    language: "Russian",
-    languageFlag: "🇷🇺",
-    description: "Russian Synodal translation",
-    isCommon: true,
+    id: "Tagalog2005Bible",
+    shortName: "TAG05",
+    name: "Ang Biblia (2005)",
+    language: "Filipino",
+    languageFlag: "🇵🇭",
+    description: "2005 Tagalog Bible version",
   },
   {
-    id: "ko_ko",
-    source: "json",
-    name: "Korean Bible",
-    shortName: "KOR",
-    language: "Korean",
-    languageFlag: "🇰🇷",
-    description: "Korean Bible translation",
-    isCommon: true,
-  },
-  // ── All Versions ──────────────────────────────────────────────────────────
-  {
-    id: "ar_svd",
-    source: "json",
-    name: "Arabic Bible (SVD)",
-    shortName: "SVD",
-    language: "Arabic",
-    languageFlag: "🇸🇦",
-    description: "Smith Van Dyke Arabic translation",
-  },
-  {
-    id: "zh_cuv",
-    source: "json",
-    name: "Chinese Union Version",
-    shortName: "CUV",
-    language: "Chinese",
-    languageFlag: "🇨🇳",
-    description: "Traditional Chinese Union Version",
-  },
-  {
-    id: "zh_ncv",
-    source: "json",
-    name: "New Chinese Version",
-    shortName: "NCV",
-    language: "Chinese",
-    languageFlag: "🇨🇳",
-    description: "Simplified Chinese translation",
-  },
-  {
-    id: "de_schlachter",
-    source: "json",
-    name: "Schlachter Bibel",
-    shortName: "SLT",
-    language: "German",
-    languageFlag: "🇩🇪",
-    description: "Franz Eugen Schlachter German Bible",
-  },
-  {
-    id: "el_greek",
-    source: "json",
-    name: "Modern Greek Bible",
-    shortName: "GRK",
-    language: "Greek",
-    languageFlag: "🇬🇷",
-    description: "Modern Greek translation",
-  },
-  {
-    id: "eo_esperanto",
-    source: "json",
-    name: "Esperanto Bible",
-    shortName: "ESP",
-    language: "Esperanto",
-    languageFlag: "🟩",
-    description: "Bible in Esperanto",
-  },
-  {
-    id: "fi_finnish",
-    source: "json",
-    name: "Finnish Bible",
-    shortName: "FIN",
-    language: "Finnish",
-    languageFlag: "🇫🇮",
-    description: "Classic Finnish Bible translation",
-  },
-  {
-    id: "fi_pr",
-    source: "json",
-    name: "Pyhä Raamattu",
-    shortName: "PR",
-    language: "Finnish",
-    languageFlag: "🇫🇮",
-    description: "Finnish Pyhä Raamattu version",
-  },
-  {
-    id: "fr_apee",
-    source: "json",
-    name: "La Bible de l'Épée",
-    shortName: "APEE",
-    language: "French",
-    languageFlag: "🇫🇷",
-    description: "French Bible de l'Épée translation",
-  },
-  {
-    id: "pt_aa",
-    source: "json",
-    name: "Almeida Revisada",
-    shortName: "AA",
-    language: "Portuguese",
-    languageFlag: "🇵🇹",
-    description: "Almeida Revisada Imprensa Bíblica",
-  },
-  {
-    id: "pt_acf",
-    source: "json",
-    name: "Almeida Corrigida",
-    shortName: "ACF",
-    language: "Portuguese",
-    languageFlag: "🇵🇹",
-    description: "Almeida Corrigida e Revisada Fiel",
-  },
-  {
-    id: "pt_nvi",
-    source: "json",
-    name: "Nova Versão Internacional",
-    shortName: "NVI",
-    language: "Portuguese",
-    languageFlag: "🇧🇷",
-    description: "Modern Brazilian Portuguese",
-  },
-  {
-    id: "ro_cornilescu",
-    source: "json",
-    name: "Cornilescu Bible",
-    shortName: "COR",
-    language: "Romanian",
-    languageFlag: "🇷🇴",
-    description: "Dumitru Cornilescu Romanian translation",
-  },
-  {
-    id: "vi_vietnamese",
-    source: "json",
-    name: "Vietnamese Bible",
-    shortName: "VIE",
-    language: "Vietnamese",
-    languageFlag: "🇻🇳",
-    description: "Tiếng Việt Bible translation",
+    id: "WarayBible",
+    shortName: "WAR",
+    name: "Waray Bible",
+    language: "Waray",
+    languageFlag: "🇵🇭",
+    description: "Waray-Waray nga hubad",
   },
 ];
 
 const STORAGE_KEY_ACTIVE_VERSION = "bible_active_version";
 
-// Source URLs
-const URL_JSON =
-  "https://raw.githubusercontent.com/thiagobodruk/bible/master/json/";
-const URL_XML =
-  "https://raw.githubusercontent.com/christos-c/bible-corpus/master/bibles/";
-const URL_SCROLL =
-  "https://raw.githubusercontent.com/bibleapi/bibleapi-bibles-json/master/";
-
-// Maps BIBLE_BOOKS index (0-based) → XML book abbreviation used in christos-c corpus
-const BOOK_ABBREVS = [
-  "GEN",
-  "EXO",
-  "LEV",
-  "NUM",
-  "DEU",
-  "JOS",
-  "JDG",
-  "RUT",
-  "1SA",
-  "2SA",
-  "1KI",
-  "2KI",
-  "1CH",
-  "2CH",
-  "EZR",
-  "NEH",
-  "EST",
-  "JOB",
-  "PSA",
-  "PRO",
-  "ECC",
-  "SON",
-  "ISA",
-  "JER",
-  "LAM",
-  "EZE",
-  "DAN",
-  "HOS",
-  "JOE",
-  "AMO",
-  "OBA",
-  "JON",
-  "MIC",
-  "NAH",
-  "HAB",
-  "ZEP",
-  "HAG",
-  "ZEC",
-  "MAL",
-  "MAT",
-  "MAR",
-  "LUK",
-  "JOH",
-  "ACT",
-  "ROM",
-  "1CO",
-  "2CO",
-  "GAL",
-  "EPH",
-  "PHI",
-  "COL",
-  "1TH",
-  "2TH",
-  "1TI",
-  "2TI",
-  "TIT",
-  "PHM",
-  "HEB",
-  "JAM",
-  "1PE",
-  "2PE",
-  "1JO",
-  "2JO",
-  "3JO",
-  "JUD",
-  "REV",
-];
+// Single source — Beblia GitHub repo
+const BEBLIA_URL =
+  "https://raw.githubusercontent.com/Beblia/Holy-Bible-XML-Format/master/";
 
 // ─── Bible Books List ─────────────────────────────────────────────────────────
 
@@ -495,184 +339,106 @@ async function downloadBible(
     const version = BIBLE_VERSIONS.find((v) => v.id === versionId);
     if (!version) return { ok: false, error: `Unknown version: ${versionId}` };
 
-    if (version.source === "xml") {
-      return downloadXmlBible(version, onProgress);
+    const url = `${BEBLIA_URL}${version.id}.xml`;
+    console.log("[Bible DL] Fetching:", url);
+    const res = await fetch(url);
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    const xml = await res.text();
+    console.log("[Bible DL] Downloaded chars:", xml.length);
+    if (onProgress) onProgress(25);
+    await yieldThread();
+
+    // ── Parse Beblia XML with indexOf only (no regex) ─────────────────────
+    // Format: <book number="N"><chapter number="N"><verse number="N">text</verse>
+    const VERSE_OPEN = '<verse number="';
+    const VERSE_CLOSE = "</verse>";
+    const BOOK_OPEN = '<book number="';
+    const CHAPTER_OPEN = '<chapter number="';
+
+    // bookNum is 1-indexed (1-66), our storage uses 0-indexed bookIdx
+    let currentBook = 0;
+    let currentChapter = 0;
+    const bookMap: Map<number, Map<number, string[]>> = new Map();
+
+    let pos = 0;
+    let count = 0;
+
+    while (pos < xml.length) {
+      // Find the next interesting tag
+      const nextBook = xml.indexOf(BOOK_OPEN, pos);
+      const nextChapter = xml.indexOf(CHAPTER_OPEN, pos);
+      const nextVerse = xml.indexOf(VERSE_OPEN, pos);
+
+      // No more verses — done
+      if (nextVerse === -1) break;
+
+      // Update book if a <book> tag comes before this verse
+      if (nextBook !== -1 && nextBook < nextVerse) {
+        const numStart = nextBook + BOOK_OPEN.length;
+        const numEnd = xml.indexOf('"', numStart);
+        if (numEnd !== -1)
+          currentBook = parseInt(xml.substring(numStart, numEnd), 10);
+      }
+
+      // Update chapter if a <chapter> tag comes before this verse
+      if (nextChapter !== -1 && nextChapter < nextVerse) {
+        const numStart = nextChapter + CHAPTER_OPEN.length;
+        const numEnd = xml.indexOf('"', numStart);
+        if (numEnd !== -1)
+          currentChapter = parseInt(xml.substring(numStart, numEnd), 10);
+      }
+
+      // Extract verse text
+      const textStart = xml.indexOf(">", nextVerse + VERSE_OPEN.length);
+      const textEnd = xml.indexOf(VERSE_CLOSE, textStart + 1);
+      if (textStart === -1 || textEnd === -1) {
+        pos = nextVerse + 1;
+        continue;
+      }
+
+      const text = xml.substring(textStart + 1, textEnd).trim();
+      if (text.length > 0 && currentBook > 0 && currentChapter > 0) {
+        const bookIdx = currentBook - 1; // 0-indexed
+        if (!bookMap.has(bookIdx)) bookMap.set(bookIdx, new Map());
+        const chapters = bookMap.get(bookIdx)!;
+        if (!chapters.has(currentChapter)) chapters.set(currentChapter, []);
+        chapters.get(currentChapter)!.push(text);
+      }
+
+      pos = textEnd + VERSE_CLOSE.length;
+      count++;
+
+      if (count % 500 === 0) {
+        if (onProgress) onProgress(25 + Math.round((count / 31100) * 40)); // 25-65%
+        await yieldThread();
+      }
     }
-    if (version.source === "scroll") {
-      return downloadScrollBible(version, onProgress);
+
+    console.log("[Bible DL] Parsed", count, "verses,", bookMap.size, "books");
+    if (onProgress) onProgress(65);
+    await yieldThread();
+
+    // Convert to RawBook[]
+    const books: RawBook[] = [];
+    for (let bi = 0; bi < 66; bi++) {
+      const chapterMap = bookMap.get(bi) ?? new Map();
+      const chapters: string[][] = [];
+      for (let c = 1; c <= chapterMap.size; c++)
+        chapters.push(chapterMap.get(c) ?? []);
+      books.push({ name: "", abbrev: "", chapters });
     }
-    // default: "json" — thiagobodruk
-    return downloadJsonBible(version, onProgress);
+
+    return storeBooks(version.id, books, (pct) => {
+      if (onProgress) onProgress(65 + Math.round(pct * 0.35));
+    });
   } catch (e: any) {
     console.error("[Bible DL] Error:", e?.message ?? e);
     return { ok: false, error: e?.message ?? String(e) };
   }
 }
 
-// ── thiagobodruk JSON: [{name, abbrev, chapters: [[v1,v2...],...]}] ────────────
-async function downloadJsonBible(
-  version: BibleVersion,
-  onProgress?: (pct: number) => void,
-): Promise<{ ok: boolean; error?: string }> {
-  const url = `${URL_JSON}${version.id}.json`;
-  console.log("[Bible DL] JSON fetch:", url);
-  const res = await fetch(url);
-  if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
-  const raw = await res.text();
-  if (onProgress) onProgress(30);
-  await yieldThread();
-
-  const books: RawBook[] = JSON.parse(raw.replace(/^\uFEFF/, ""));
-  if (onProgress) onProgress(50);
-  await yieldThread();
-
-  return storeBooks(version.id, books, (pct) => {
-    if (onProgress) onProgress(50 + Math.round(pct * 0.5));
-  });
-}
-
-// ── bibleapi scrollmapper: {resultset:{row:[{field:[id,b,c,v,text]}]}} ─────────
-async function downloadScrollBible(
-  version: BibleVersion,
-  onProgress?: (pct: number) => void,
-): Promise<{ ok: boolean; error?: string }> {
-  const url = `${URL_SCROLL}${version.id}.json`;
-  console.log("[Bible DL] Scroll fetch:", url);
-  const res = await fetch(url);
-  if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
-  const json = await res.json();
-  if (onProgress) onProgress(30);
-  await yieldThread();
-
-  const rows: Array<{ field: [number, number, number, number, string] }> =
-    json?.resultset?.row ?? [];
-
-  const bookMap: Map<number, Map<number, string[]>> = new Map();
-  for (const { field } of rows) {
-    const [, b, c, , text] = field;
-    if (!bookMap.has(b)) bookMap.set(b, new Map());
-    const chapters = bookMap.get(b)!;
-    if (!chapters.has(c)) chapters.set(c, []);
-    chapters.get(c)!.push(text);
-  }
-  if (onProgress) onProgress(50);
-  await yieldThread();
-
-  const books: RawBook[] = BOOK_ABBREVS.map((abbrev, idx) => {
-    const chapterMap = bookMap.get(idx + 1) ?? new Map();
-    const chapters: string[][] = [];
-    for (let c = 1; c <= chapterMap.size; c++)
-      chapters.push(chapterMap.get(c) ?? []);
-    return { name: abbrev, abbrev, chapters };
-  });
-
-  return storeBooks(version.id, books, (pct) => {
-    if (onProgress) onProgress(50 + Math.round(pct * 0.5));
-  });
-}
-
-// ── christos-c XML corpus: <seg id="b.GEN.1.1">text</seg> ────────────────────
-// ZERO regex — pure indexOf + substring. Hermes chokes on regex with [\s\S]*?
-async function downloadXmlBible(
-  version: BibleVersion,
-  onProgress?: (pct: number) => void,
-): Promise<{ ok: boolean; error?: string }> {
-  const url = `${URL_XML}${version.id}.xml`;
-  console.log("[Bible DL] XML fetch:", url);
-  const res = await fetch(url);
-  if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
-  const xml = await res.text();
-  console.log("[Bible DL] XML chars:", xml.length);
-  if (onProgress) onProgress(25);
-  await yieldThread();
-
-  // Fast parse using indexOf only — no regex at all
-  const SEG_OPEN = '<seg id="b.';
-  const SEG_CLOSE = "</seg>";
-  const bookMap: Map<string, Map<number, string[]>> = new Map();
-
-  let pos = 0;
-  let count = 0;
-
-  while (true) {
-    const segStart = xml.indexOf(SEG_OPEN, pos);
-    if (segStart === -1) break;
-
-    const idStart = segStart + SEG_OPEN.length; // right after '<seg id="b.'
-    const dot1 = xml.indexOf(".", idStart); // GEN.
-    const dot2 = xml.indexOf(".", dot1 + 1); // 1.
-    const quote = xml.indexOf('"', dot2 + 1); // 1"
-
-    if (dot1 === -1 || dot2 === -1 || quote === -1) {
-      pos = idStart;
-      continue;
-    }
-
-    const abbrev = xml.substring(idStart, dot1);
-    const chapter = parseInt(xml.substring(dot1 + 1, dot2), 10);
-
-    // Find the > that closes the opening tag, then </seg>
-    const gt = xml.indexOf(">", quote);
-    const endSeg = xml.indexOf(SEG_CLOSE, gt + 1);
-
-    if (gt === -1 || endSeg === -1) {
-      pos = idStart;
-      continue;
-    }
-
-    // Extract verse text, collapse whitespace
-    let text = "";
-    let i = gt + 1;
-    let lastWasSpace = true;
-    while (i < endSeg) {
-      const c = xml.charCodeAt(i);
-      if (c <= 32) {
-        // space, tab, newline, cr
-        if (!lastWasSpace) {
-          text += " ";
-          lastWasSpace = true;
-        }
-      } else {
-        text += xml[i];
-        lastWasSpace = false;
-      }
-      i++;
-    }
-    text = text.trim();
-
-    if (text.length > 0) {
-      if (!bookMap.has(abbrev)) bookMap.set(abbrev, new Map());
-      const chapters = bookMap.get(abbrev)!;
-      if (!chapters.has(chapter)) chapters.set(chapter, []);
-      chapters.get(chapter)!.push(text);
-    }
-
-    pos = endSeg + SEG_CLOSE.length;
-    count++;
-
-    // Yield every 500 verses — keeps UI alive
-    if (count % 500 === 0) {
-      if (onProgress) onProgress(25 + Math.round((count / 31100) * 40)); // 25-65%
-      await yieldThread();
-    }
-  }
-
-  console.log("[Bible DL] Parsed", count, "verses");
-  if (onProgress) onProgress(65);
-  await yieldThread();
-
-  const books: RawBook[] = BOOK_ABBREVS.map((abbrev) => {
-    const chapterMap = bookMap.get(abbrev) ?? new Map();
-    const chapters: string[][] = [];
-    for (let c = 1; c <= chapterMap.size; c++)
-      chapters.push(chapterMap.get(c) ?? []);
-    return { name: abbrev, abbrev, chapters };
-  });
-
-  return storeBooks(version.id, books, (pct) => {
-    if (onProgress) onProgress(65 + Math.round(pct * 0.35));
-  });
-}
+// Raw book type for internal processing
+type RawBook = { name: string; abbrev: string; chapters: string[][] };
 
 // ── Shared: write all chapters to SQLite in one transaction ───────────────────
 async function storeBooks(
@@ -726,9 +492,6 @@ async function deleteLocalBible(versionId: string): Promise<void> {
   } catch {}
 }
 
-// Raw thiagobodruk format: [{name, abbrev, chapters: [[v1, v2, ...], ...]}]
-type RawBook = { name: string; abbrev: string; chapters: string[][] };
-
 async function fetchChapterLocal(
   versionId: string,
   book: string,
@@ -765,7 +528,7 @@ async function fetchChapterLocal(
 async function fetchChapter(
   book: string,
   chapter: number,
-  versionId = "en_kjv",
+  versionId = "EnglishKJBible",
 ): Promise<{ data: BibleChapter | null; error?: string }> {
   const downloaded = await isBibleDownloaded(versionId);
   if (downloaded) {
@@ -891,7 +654,7 @@ function VersionPickerModal({
     setDownloadedIds(updated);
     if (activeVersionId === version.id) {
       // Switch to next available downloaded version, or KJV as fallback
-      onSelect(updated[0] ?? "en_kjv");
+      onSelect(updated[0] ?? "EnglishKJBible");
     }
   };
 
@@ -1637,7 +1400,7 @@ export default function BibleReaderScreen() {
   useEffect(() => {
     (async () => {
       const saved = await Storage.getItem(STORAGE_KEY_ACTIVE_VERSION);
-      const versionId = saved ?? "en_kjv";
+      const versionId = saved ?? "EnglishKJBible";
       setActiveVersionId(versionId);
 
       // If active version isn't downloaded, show picker immediately
@@ -2068,7 +1831,7 @@ export default function BibleReaderScreen() {
       {/* ── Version Picker Modal ── */}
       <VersionPickerModal
         visible={showVersionPicker}
-        activeVersionId={activeVersionId ?? "en_kjv"}
+        activeVersionId={activeVersionId ?? "EnglishKJBible"}
         onSelect={handleVersionSelect}
         onClose={() => setShowVersionPicker(false)}
       />
